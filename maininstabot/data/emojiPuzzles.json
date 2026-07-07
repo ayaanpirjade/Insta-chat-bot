@@ -1,0 +1,38 @@
+[
+  {
+    "emojis": "🦁👑",
+    "answer": "The Lion King",
+    "hint": "A Disney animated movie about a young lion prince.",
+    "category": "movie"
+  },
+  {
+    "emojis": "🕷️🙋‍♂️",
+    "answer": "Spider-Man",
+    "hint": "A superhero movie about a boy bitten by a spider.",
+    "category": "movie"
+  },
+  {
+    "emojis": "❄️🙋‍♀️",
+    "answer": "Frozen",
+    "hint": "A Disney movie about two sisters, one of whom has ice powers.",
+    "category": "movie"
+  },
+  {
+    "emojis": "🚢🏔️💔",
+    "answer": "Titanic",
+    "hint": "A famous romantic tragedy set on a ship.",
+    "category": "movie"
+  },
+  {
+    "emojis": "🦖🏜️🌳",
+    "answer": "Jurassic Park",
+    "hint": "A movie about cloned dinosaurs running wild.",
+    "category": "movie"
+  },
+  {
+    "emojis": "🦇🙋‍♂️🏙️",
+    "answer": "Batman",
+    "hint": "A hero who protects Gotham City.",
+    "category": "movie"
+  }
+]

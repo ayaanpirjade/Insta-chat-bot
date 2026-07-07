@@ -1,0 +1,90 @@
+[
+  {
+    "question": "What is the capital of France?",
+    "options": [
+      "A. London",
+      "B. Berlin",
+      "C. Paris",
+      "D. Rome"
+    ],
+    "answer": "C",
+    "category": "geography"
+  },
+  {
+    "question": "Which planet is known as the Red Planet?",
+    "options": [
+      "A. Earth",
+      "B. Mars",
+      "C. Jupiter",
+      "D. Saturn"
+    ],
+    "answer": "B",
+    "category": "science"
+  },
+  {
+    "question": "What is the largest ocean on Earth?",
+    "options": [
+      "A. Atlantic Ocean",
+      "B. Indian Ocean",
+      "C. Arctic Ocean",
+      "D. Pacific Ocean"
+    ],
+    "answer": "D",
+    "category": "geography"
+  },
+  {
+    "question": "Who painted the Mona Lisa?",
+    "options": [
+      "A. Vincent van Gogh",
+      "B. Pablo Picasso",
+      "C. Leonardo da Vinci",
+      "D. Michelangelo"
+    ],
+    "answer": "C",
+    "category": "pop_culture"
+  },
+  {
+    "question": "What is the chemical symbol for gold?",
+    "options": [
+      "A. Go",
+      "B. Gd",
+      "C. Au",
+      "D. Ag"
+    ],
+    "answer": "C",
+    "category": "science"
+  },
+  {
+    "question": "Which gas do plants absorb from the atmosphere?",
+    "options": [
+      "A. Oxygen",
+      "B. Nitrogen",
+      "C. Carbon Dioxide",
+      "D. Hydrogen"
+    ],
+    "answer": "C",
+    "category": "science"
+  },
+  {
+    "question": "In what year did World War II end?",
+    "options": [
+      "A. 1918",
+      "B. 1939",
+      "C. 1945",
+      "D. 1950"
+    ],
+    "answer": "C",
+    "category": "history"
+  },
+  {
+    "question": "What is the fastest land animal?",
+    "options": [
+      "A. Lion",
+      "B. Cheetah",
+      "C. Leopard",
+      "D. Gazelle"
+    ],
+    "answer": "B",
+    "category": "science"
+  }
+]

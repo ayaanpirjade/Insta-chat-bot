@@ -1,0 +1,52 @@
+[
+  {
+    "quote": "The only way to do great work is to love what you do.",
+    "author": "Steve Jobs",
+    "category": "success"
+  },
+  {
+    "quote": "Life is what happens when you're busy making other plans.",
+    "author": "John Lennon",
+    "category": "life"
+  },
+  {
+    "quote": "The mind is everything. What you think you become.",
+    "author": "Buddha",
+    "category": "wisdom"
+  },
+  {
+    "quote": "It is during our darkest moments that we must focus to see the light.",
+    "author": "Aristotle",
+    "category": "wisdom"
+  },
+  {
+    "quote": "The only thing we have to fear is fear itself.",
+    "author": "Franklin D. Roosevelt",
+    "category": "life"
+  },
+  {
+    "quote": "Be yourself; everyone else is already taken.",
+    "author": "Oscar Wilde",
+    "category": "life"
+  },
+  {
+    "quote": "In the middle of difficulty lies opportunity.",
+    "author": "Albert Einstein",
+    "category": "motivation"
+  },
+  {
+    "quote": "Your time is limited, don't waste it living someone else's life.",
+    "author": "Steve Jobs",
+    "category": "success"
+  },
+  {
+    "quote": "I have not failed. I've just found 10,000 ways that won't work.",
+    "author": "Thomas A. Edison",
+    "category": "motivation"
+  },
+  {
+    "quote": "Whether you think you can or think you can't, you're right.",
+    "author": "Henry Ford",
+    "category": "success"
+  }
+]
