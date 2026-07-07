@@ -10,8 +10,8 @@ U = config.USERNAME
 B = config.BRAND
 
 # Total width including borders = 22 characters (Ultra Mobile Compact!)
-BOX_WIDTH = 22
-INNER_WIDTH = 18
+BOX_WIDTH = 28
+INNER_WIDTH = 25
 
 # ── Box Drawing Characters ──
 TL = "╔"  # Top-Left
@@ -100,6 +100,7 @@ def main_menu():
         make_line(f"{P}reel", "🎬 Reel"),   
         make_line(f"{P}audio", "🎵 Audio"), 
         make_line(f"{P}speak", "🧠 AI Voice"),
+        make_line(f"{P}profile", "👤 Profile Info"),
         "│ ═══════════════════ │",
         "│ 🛠️ 𝗧𝗢𝗢𝗟𝗦 & 𝗨𝗧𝗜𝗟𝗦 │",
         "│ ═══════════════════ │",
@@ -177,7 +178,7 @@ def bot_info():
         make_line("📌 Version", "2.3.0"),
         make_line("⚡ AI", "Groq LLaMA"),
         make_line("🔧 Engine", "Python 3"),
-        make_line("👨‍💻 Dev" , "@ayaanplugs"),
+        make_line("👨‍💻 Dev" , " @ayaanplugs"),
         make_line("📡 Status", "Online ✅"),
         "│ ═══════════════════ │",
         make_line("🎮 Games", "8 Games"),
