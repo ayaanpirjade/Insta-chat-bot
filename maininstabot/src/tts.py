@@ -1,10 +1,7 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          ✨ AYAAN AI ✨
-#   !tts & !speak Commands
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#
-# !tts <text> - Convert text to speech
-# !speak <question> - AI reply + voice note (NO TEXT)
+#   !tts & !speak Commands - gTTS Version (FREE)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
 import time
@@ -17,12 +14,12 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from instagrapi import Client
 
-# ── ElevenLabs ──
+# ── gTTS (Free Google TTS) ──
 try:
-    from elevenlabs.client import ElevenLabs
-    ELEVENLABS_AVAILABLE = True
+    from gtts import gTTS
+    GTTS_AVAILABLE = True
 except ImportError:
-    ELEVENLABS_AVAILABLE = False
+    GTTS_AVAILABLE = False
 
 # ── Groq AI ──
 try:
@@ -32,22 +29,31 @@ except ImportError:
     GROQ_AVAILABLE = False
 
 # ── Constants ──
-COOLDOWN_SECONDS = 20  # ⬆️ Increased for longer responses
+COOLDOWN_SECONDS = 15
 _last_used: Dict[str, float] = {}
 _last_request_time: float = 0
 DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# ── Voice Settings ──
-DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
-DEFAULT_MODEL = "eleven_multilingual_v2"
-
-LANGUAGE_VOICES = {
-    "hi": "EXAVITQu4L4TnTtW5C",
-    "en": "JBFqnCBsd6RMkjVDRZzb",
+# ── Language Codes ──
+LANGUAGE_CODES = {
+    "hi": "hi",      # Hindi
+    "en": "en",      # English
+    "ta": "ta",      # Tamil
+    "te": "te",      # Telugu
+    "ml": "ml",      # Malayalam
+    "kn": "kn",      # Kannada
+    "ur": "ur",      # Urdu
+    "bn": "bn",      # Bengali
+    "mr": "mr",      # Marathi
+    "gu": "gu",      # Gujarati
+    "pa": "pa",      # Punjabi
+    "or": "or",      # Odia
 }
 
 
 def detect_language(text: str) -> str:
+    """Detect language from text"""
     hindi_pattern = re.compile(r'[\u0900-\u097F]')
     if hindi_pattern.search(text):
         return "hi"
@@ -62,7 +68,7 @@ def human_like_delay(min_seconds: float = 0.5, max_seconds: float = 2.0):
     time.sleep(random.uniform(min_seconds, max_seconds))
 
 
-def ensure_request_gap(min_gap: float = 1.5):
+def ensure_request_gap(min_gap: float = 1.0):
     global _last_request_time
     elapsed = time.time() - _last_request_time
     if elapsed < min_gap:
@@ -70,57 +76,51 @@ def ensure_request_gap(min_gap: float = 1.5):
     _last_request_time = time.time()
 
 
-def generate_tts_elevenlabs(text: str, lang: str = "en") -> Optional[str]:
+# ═══════════════════════════════════════════════════════════════
+#  🆓 gTTS - FREE TEXT TO SPEECH
+# ═══════════════════════════════════════════════════════════════
+
+def generate_tts_gtts(text: str, lang: str = "en") -> Optional[str]:
+    """
+    Generate TTS using gTTS (FREE - NO CREDITS NEEDED)
+    """
     try:
-        if not ELEVENLABS_AVAILABLE:
+        if not GTTS_AVAILABLE:
+            print("  ⚠️ gTTS not installed. Install with: pip install gTTS")
             return None
         
-        api_key = os.getenv("ELEVENLABS_API_KEY")
-        if not api_key:
-            print("  ⚠️ ELEVENLABS_API_KEY not set")
-            return None
-        
-        client = ElevenLabs(api_key=api_key)
-        voice_id = LANGUAGE_VOICES.get(lang, DEFAULT_VOICE_ID)
-        
+        # Clean text for filename
         safe_text = re.sub(r'[^\w\s-]', '', text[:30]).strip()
         safe_text = re.sub(r'[-\s]+', '_', safe_text) if safe_text else "speech"
-        filename = os.path.join(DOWNLOAD_DIR, f"speak_{safe_text}_{int(time.time())}.mp3")
+        filename = os.path.join(DOWNLOAD_DIR, f"tts_{safe_text}_{int(time.time())}.mp3")
         
-        os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-        
-        print(f"  🔊 Generating voice...")
+        print(f"  🔊 Generating voice with gTTS...")
         print(f"  📝 Text length: {len(text)} chars")
+        print(f"  🌐 Language: {lang}")
         
-        audio = client.text_to_speech.convert(
-            text=text,
-            voice_id=voice_id,
-            model_id=DEFAULT_MODEL,
-            output_format="mp3_44100_128",
-        )
-        
-        with open(filename, 'wb') as f:
-            for chunk in audio:
-                if isinstance(chunk, bytes):
-                    f.write(chunk)
+        # ✅ gTTS - SLOW but FREE!
+        tts = gTTS(text=text, lang=lang, slow=False)
+        tts.save(filename)
         
         if os.path.exists(filename) and os.path.getsize(filename) > 0:
             size_kb = os.path.getsize(filename) / 1024
-            print(f"  ✅ Voice generated ({size_kb:.1f} KB)")
+            print(f"  ✅ Voice generated ({size_kb:.1f} KB) - FREE!")
             return filename
         
         return None
         
     except Exception as e:
-        print(f"  ⚠️ TTS failed: {e}")
+        print(f"  ⚠️ gTTS failed: {e}")
         return None
 
 
 def convert_to_voice_note(input_path: str) -> Optional[str]:
+    """Convert MP3 to M4A voice note format"""
     try:
         ffmpeg_path = find_executable("ffmpeg")
         if not ffmpeg_path:
-            return None
+            print("  ⚠️ ffmpeg not found, sending as MP3")
+            return input_path  # Send as MP3 if ffmpeg not available
         
         output_path = input_path.replace(".mp3", "_voice.m4a")
         
@@ -139,18 +139,19 @@ def convert_to_voice_note(input_path: str) -> Optional[str]:
         if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
             return output_path
         
-        return None
+        return input_path  # Fallback to MP3
         
     except Exception as e:
         print(f"  ⚠️ Conversion failed: {e}")
-        return None
+        return input_path  # Fallback to MP3
 
 
 # ═══════════════════════════════════════════════════════════════
-#  !speak - AI REPLY + VOICE NOTE (NO TEXT REPLY)
+#  🤖 AI REPLY FOR !speak
 # ═══════════════════════════════════════════════════════════════
 
-def get_ai_reply(query: str) -> Optional[str]:
+def get_ai_reply(query: str, max_tokens: int = 300) -> Optional[str]:
+    """Get AI reply using Groq"""
     try:
         if not GROQ_AVAILABLE:
             return None
@@ -164,31 +165,106 @@ def get_ai_reply(query: str) -> Optional[str]:
         
         print(f"  🤖 Getting AI reply...")
         
-        # ✅ Detect if user wants a long story/explanation
-        is_long = any(word in query.lower() for word in ["story", "explain", "detail", "minute", "paragraph", "long"])
-        
+        # ✅ Short replies for TTS (max 300 chars)
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are AYAAN AI, a helpful assistant."},
+                {"role": "system", "content": "You are AYAAN AI. Give concise, informative replies under 300 characters."},
                 {"role": "user", "content": query}
             ],
             temperature=0.7,
-            max_tokens=500 if is_long else 150,  # ✅ Longer for stories
+            max_tokens=200,  # ⬇️ Small for TTS
         )
         
         reply = completion.choices[0].message.content.strip()
         print(f"  ✅ AI reply: {reply[:50]}... ({len(reply)} chars)")
-        return reply
+        return reply[:500]  # Limit to 500 chars for TTS
         
     except Exception as e:
         print(f"  ⚠️ AI failed: {e}")
         return None
 
 
+# ═══════════════════════════════════════════════════════════════
+#  🎯 COMMAND HANDLERS
+# ═══════════════════════════════════════════════════════════════
+
+def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
+    """
+    Handle !tts command - Convert text to speech using gTTS
+    """
+    text = text.strip()
+    if not text:
+        return "🔊 Please provide text to speak.\nExample: !tts Hello everyone"
+    
+    if len(text) > 500:
+        return "⚠️ Text too long! Maximum 500 characters for TTS."
+    
+    lang = detect_language(text)
+    lang_code = LANGUAGE_CODES.get(lang, "en")
+    
+    # Cooldown check
+    last = _last_used.get(user_id)
+    if last is not None:
+        elapsed = time.monotonic() - last
+        if elapsed < COOLDOWN_SECONDS:
+            return f"⏳ Slow down @{username}! Try again in {round(COOLDOWN_SECONDS - elapsed, 1)}s."
+    _last_used[user_id] = time.monotonic()
+    
+    human_like_delay(1.0, 2.0)
+    ensure_request_gap(1.0)
+    
+    print(f"\n🔊 Processing TTS: {text[:50]}...")
+    
+    if not GTTS_AVAILABLE:
+        return "⚠️ gTTS not installed. Install with: pip install gTTS"
+    
+    # ✅ Generate TTS using gTTS (FREE)
+    audio_path = generate_tts_gtts(text, lang_code)
+    
+    if not audio_path:
+        return f"❌ Failed to generate TTS.\n\nText: {text[:200]}"
+    
+    # ✅ Convert to voice note format
+    voice_path = convert_to_voice_note(audio_path)
+    
+    # Cleanup MP3
+    if audio_path != voice_path and os.path.exists(audio_path):
+        try:
+            os.remove(audio_path)
+        except:
+            pass
+    
+    if not voice_path or not os.path.exists(voice_path):
+        return f"❌ Failed to convert audio.\n\nText: {text[:200]}"
+    
+    print(f"  📤 Sending voice note...")
+    try:
+        # ✅ Send as voice note
+        cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
+        print(f"  ✅ Voice note sent!")
+        
+        # ✅ Send text too (so user can read)
+        time.sleep(1)
+        cl.direct_send(f"🔊 {text[:200]}{'...' if len(text) > 200 else ''}", thread_ids=[str(thread_id)])
+        
+        # Cleanup
+        try:
+            if os.path.exists(voice_path):
+                os.remove(voice_path)
+        except:
+            pass
+        
+        return None
+        
+    except Exception as e:
+        print(f"  ⚠️ Failed to send: {e}")
+        return f"🔊 TTS generated but failed to send.\n\nText: {text[:200]}"
+
+
 def handle_speak_command(query: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
     """
-    Handle !speak command - SIRF VOICE NOTE (NO TEXT)
+    Handle !speak command - AI Reply + Voice Note
     """
     query = query.strip()
     if not query:
@@ -197,6 +273,7 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
     if len(query) > 300:
         return "⚠️ Question too long! Maximum 300 characters."
     
+    # Cooldown check
     last = _last_used.get(user_id)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -205,18 +282,15 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
     _last_used[user_id] = time.monotonic()
     
     human_like_delay(1.0, 2.0)
-    ensure_request_gap(1.5)
+    ensure_request_gap(1.0)
     
     print(f"\n🔊 Processing speak: {query[:50]}...")
     
-    if not ELEVENLABS_AVAILABLE:
-        return "⚠️ ElevenLabs not installed."
+    if not GTTS_AVAILABLE:
+        return "⚠️ gTTS not installed. Install with: pip install gTTS"
     
     if not GROQ_AVAILABLE:
         return "⚠️ Groq not installed."
-    
-    if not find_executable("ffmpeg"):
-        return "⚠️ ffmpeg missing."
     
     # Get AI reply
     reply = get_ai_reply(query)
@@ -224,33 +298,44 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
     if not reply:
         return "❌ Failed to get AI reply."
     
-    # ✅ Send a quick text acknowledgment
+    # Send acknowledgment
     try:
         cl.direct_send("🎙️ Generating voice...", thread_ids=[str(thread_id)])
     except:
         pass
     
-    # Generate voice
-    audio_path = generate_tts_elevenlabs(reply, detect_language(reply))
+    # Generate voice using gTTS
+    lang = detect_language(reply)
+    lang_code = LANGUAGE_CODES.get(lang, "en")
+    
+    audio_path = generate_tts_gtts(reply, lang_code)
     
     if not audio_path:
-        return "❌ Failed to generate voice."
+        # Fallback: Send AI reply as text
+        return f"🤖 AI Reply (voice failed):\n\n{reply[:300]}"
     
     voice_path = convert_to_voice_note(audio_path)
     
-    try:
-        if os.path.exists(audio_path):
+    # Cleanup MP3
+    if audio_path != voice_path and os.path.exists(audio_path):
+        try:
             os.remove(audio_path)
-    except:
-        pass
+        except:
+            pass
     
-    if not voice_path:
-        return "❌ Failed to convert audio."
+    if not voice_path or not os.path.exists(voice_path):
+        return f"🤖 AI Reply (voice failed):\n\n{reply[:300]}"
     
     try:
+        # ✅ Send voice note
         cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
         print(f"  ✅ Voice note sent!")
         
+        # ✅ Send text too (so user can read)
+        time.sleep(1)
+        cl.direct_send(f"🤖 {reply[:200]}{'...' if len(reply) > 200 else ''}", thread_ids=[str(thread_id)])
+        
+        # Cleanup
         try:
             if os.path.exists(voice_path):
                 os.remove(voice_path)
@@ -261,70 +346,7 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
         
     except Exception as e:
         print(f"  ⚠️ Failed to send: {e}")
-        return f"🔊 Voice generated but failed to send."
-
-
-# ── TTS (Text to Speech) ──
-def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
-    text = text.strip()
-    if not text:
-        return "🔊 Please provide text to speak.\nExample: !tts Hello everyone"
-    
-    if len(text) > 1000:
-        return "⚠️ Text too long! Maximum 1000 characters."
-    
-    lang = detect_language(text)
-    
-    last = _last_used.get(user_id)
-    if last is not None:
-        elapsed = time.monotonic() - last
-        if elapsed < COOLDOWN_SECONDS:
-            return f"⏳ Slow down @{username}! Try again in {round(COOLDOWN_SECONDS - elapsed, 1)}s."
-    _last_used[user_id] = time.monotonic()
-    
-    human_like_delay(1.0, 2.0)
-    ensure_request_gap(1.5)
-    
-    print(f"\n🔊 Processing TTS: {text[:50]}...")
-    
-    if not ELEVENLABS_AVAILABLE:
-        return "⚠️ ElevenLabs not installed."
-    
-    if not find_executable("ffmpeg"):
-        return "⚠️ ffmpeg missing."
-    
-    audio_path = generate_tts_elevenlabs(text, lang)
-    
-    if not audio_path:
-        return "❌ Failed to generate TTS."
-    
-    voice_path = convert_to_voice_note(audio_path)
-    
-    try:
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
-    except:
-        pass
-    
-    if not voice_path:
-        return "❌ Failed to convert audio."
-    
-    print(f"  📤 Sending voice note...")
-    try:
-        cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
-        print(f"  ✅ Voice note sent!")
-        
-        try:
-            if os.path.exists(voice_path):
-                os.remove(voice_path)
-        except:
-            pass
-        
-        return None
-        
-    except Exception as e:
-        print(f"  ⚠️ Failed to send: {e}")
-        return f"🔊 TTS generated but failed to send."
+        return f"🔊 Voice generated but failed to send.\n\n{reply[:300]}"
 
 
 # ── Standalone Test ──
@@ -345,7 +367,7 @@ if __name__ == "__main__":
     print("""
 ========================================
    🔊 AYAAN AI - TTS & Speak
-       Standalone Test Mode
+       gTTS Version (FREE!)
 ========================================
     """)
     
@@ -366,7 +388,7 @@ if __name__ == "__main__":
     
     print("\n" + "-" * 50)
     print("1. Test !tts (Text to Speech)")
-    print("2. Test !speak (AI Voice - NO TEXT)")
+    print("2. Test !speak (AI Voice)")
     choice = input("Choose (1/2): ").strip()
     
     thread_id = input("📱 Enter thread_id: ").strip()
