@@ -1,7 +1,7 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          🎬 AYAAN AI - Reel Command
 #          FINAL WORKING
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 # !reel / !dreel - Download and send reel video
 # !audio - Extract audio from reel and send as voice note
@@ -13,6 +13,7 @@ import random
 import requests
 import subprocess
 import shutil
+import sys
 from pathlib import Path
 from typing import Optional, Dict
 from instagrapi import Client
@@ -332,3 +333,73 @@ def handle_audio_command(url: str, user_id: str, username: str, thread_id: str, 
 # ── Aliases ──
 def handle_dreel_command(url: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
     return handle_reel_command(url, user_id, username, thread_id, cl)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  🧪 STANDALONE TEST
+# ═══════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    # Add parent directory to path for config import
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    try:
+        import config
+        print(f"✅ config.py loaded successfully!")
+    except ImportError as e:
+        print(f"❌ config.py not found: {e}")
+        sys.exit(1)
+    
+    print("""
+========================================
+   🎬 AYAAN AI - Reel & Audio
+       Standalone Test Mode
+========================================
+    """)
+    
+    # Get session ID
+    session_id = config.SESSION_ID.split(",")[0].strip() if hasattr(config, 'SESSION_ID') else None
+    if not session_id:
+        print("❌ No SESSION_ID found")
+        sys.exit(1)
+
+    print("🔑 Logging in...")
+    
+    cl = Client()
+    try:
+        cl.login_by_sessionid(session_id)
+        print(f"✅ Logged in as pk={cl.user_id}")
+    except Exception as e:
+        print(f"❌ Login failed: {e}")
+        sys.exit(1)
+    
+    print("\n" + "-" * 50)
+    print("1. Test !reel (Download and send reel video)")
+    print("2. Test !audio (Extract audio from reel)")
+    choice = input("Choose (1/2): ").strip()
+    
+    thread_id = input("📱 Enter thread_id: ").strip()
+    
+    if choice == "1":
+        url = input("🎬 Enter reel link: ").strip()
+        print("\n▶️ Testing !reel...")
+        print("-" * 50)
+        result = handle_reel_command(url, "test_user", "tester", thread_id, cl)
+        print("-" * 50)
+        if result is None:
+            print("🎉 Reel sent successfully!")
+        else:
+            print(f"ℹ️ {result}")
+            
+    elif choice == "2":
+        url = input("🎵 Enter reel link: ").strip()
+        print("\n▶️ Testing !audio...")
+        print("-" * 50)
+        result = handle_audio_command(url, "test_user", "tester", thread_id, cl)
+        print("-" * 50)
+        if result is None:
+            print("🎉 Audio sent successfully!")
+        else:
+            print(f"ℹ️ {result}")
+    
+    print("\n✨ Test complete!")
