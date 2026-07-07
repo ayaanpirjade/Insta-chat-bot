@@ -19,6 +19,9 @@ from . import store as store
 from . import ai as ai
 from . import music as music
 from . import reel as reel
+from . import profile as profile
+from . import post as post
+
 
 import config
 
@@ -124,6 +127,27 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
         elif cmd in ["audio", "reelaudio"]:
             result = reel.handle_audio_command(args, user_id, username, thread_id, cl)
             return result
+        # ── 👤 Profile Command ─
+        # ── Add commands ──
+        elif cmd in ["pfp", "profilepic"]:
+            result = profile.handle_pfp_command(args, user_id, username, thread_id, cl)
+            return result
+
+        elif cmd in ["profile", "info", "userinfo"]:
+            result = profile.handle_profile_command(args, user_id, username, thread_id, cl)
+            return result
+        
+        elif cmd in ["post", "repost", "share"]:
+            result = post.handle_post_command(
+            query=args,
+            user_id=user_id,
+            username=username,
+            thread_id=thread_id,
+            cl=cl,
+            session_id=config.SESSION_ID
+             )
+            return result
+        
 
         # ── Useful Commands ──
         elif cmd == "calc":
