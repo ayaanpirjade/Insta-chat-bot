@@ -21,6 +21,7 @@ from . import music as music
 from . import reel as reel
 from . import profile as profile
 from . import post as post
+from . import generate as generate
 
 
 import config
@@ -147,7 +148,15 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             session_id=config.SESSION_ID
              )
             return result
-        
+        elif cmd in ["generate", "gen", "imagine"]:
+            result = generate.handle_generate_command(
+            query=args,
+            user_id=user_id,
+            username=username,
+            thread_id=thread_id,
+            cl=cl
+            )
+            return result
 
         # ── Useful Commands ──
         elif cmd == "calc":
