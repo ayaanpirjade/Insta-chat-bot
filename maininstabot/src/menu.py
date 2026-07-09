@@ -168,25 +168,32 @@ def games_menu():
 
 
 def bot_info():
-    """Bot info card optimized for 22 chars width."""
-    lines = [
+    """Bot info card - Final"""
+    return "\n".join([
         "",
-        "┌────────────────────┐",
-        "│ ℹ️ 𝗕𝗢𝗧 𝗦𝗧𝗔𝗧𝗦    │",
-        "│ ═══════════════════ │",
-        make_line("🤖 Name", "AYAAN AI"),
-        make_line("📌 Version", "2.3.0"),
-        make_line("⚡ AI", "Groq LLaMA"),
-        make_line("🔧 Engine", "Python 3"),
-        make_line("👨‍💻 Dev" , " @ayaanplugs"),
-        make_line("📡 Status", "Online ✅"),
-        "│ ═══════════════════ │",
-        make_line("🎮 Games", "8 Games"),
-        make_line("🛠️ Utils", "6 Tools"),
-        "└────────────────────┘",
-        "──────────────────────",
-    ]
-    return "\n".join(lines)
+        ".      ✨ AYAAN AI ✨",
+        "      🤖 BOT STATUS",
+        "─────────────────",
+        "🤖 Name      : AYAAN AI",
+        "📌 Version   : 2.3.0",
+        "⚡ AI Model  : Groq LLaMA",
+        "🛠️ Engine   : Python 3",
+        "👨‍💻 Dev     : @ayaanplugs",
+        "📡 Status   : 🟢 Online",
+        "─────────────────",
+        "      📊 FEATURES",
+        "─────────────────",
+        "🎮 Games    : 8+ Games",
+        "🛠️ Utils    : 10+ Tools",
+        "🎨 Generate : Image AI",
+        "🎵 Music    : YouTube Music",
+        "🔊 TTS      : Text to Speech",
+        "🎬 Reels    : Download & Audio",
+        "🎥 Post     : Feed Post",
+        "─────────────────",
+        "    💬 Type !help",
+        "",
+    ])
 
 
 def welcome_message(username: str = "there"):
