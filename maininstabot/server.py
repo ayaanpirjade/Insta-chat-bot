@@ -81,6 +81,7 @@ def handle_incoming_message(msg, thread, my_id: str):
             username=username,
             is_group=is_group,
             cl=cl,
+            msg=msg
         )
 
         if reply:
