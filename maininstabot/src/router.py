@@ -1,7 +1,7 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          ✨ AYAAN AI ✨
-#      Central Message Router
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#      Central Message Router - FIXED
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import re
 import datetime
@@ -23,11 +23,10 @@ from . import profile as profile
 from . import post as post
 from . import generate as generate
 
-
 import config
 
 
-def process_message(text: str, thread_id: str, user_id: str, username: str, is_group: bool, cl) -> str | None:
+def process_message(text: str, thread_id: str, user_id: str, username: str, is_group: bool, cl, msg=None) -> str | None:
     """
     Main message router. Receives incoming message, parses commands,
     manages active games, and falls back to Groq AI if mentioned.
@@ -119,42 +118,73 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             result = tts.handle_speak_command(args, user_id, username, thread_id, cl)
             return result
 
-        # ── 🎬 Reel Commands ──
+        # ── 🎬 REEL COMMANDS (WITH REPLY DETECTION) ──
         elif cmd in ["reel", "dreel", "dlreel"]:
-            result = reel.handle_reel_command(args, user_id, username, thread_id, cl)
+            # ✅ Pass msg object for reply detection
+            result = reel.handle_reel_command(
+                cl=cl,
+                thread_id=thread_id,
+                msg=msg,  # ⬅️ Full message object
+                user_id=user_id,
+                username=username,
+                args=args
+            )
             return result
 
-        # ── 🎵 Audio Extract ──
+        # ── 🎵 AUDIO EXTRACT (WITH REPLY DETECTION) ──
         elif cmd in ["audio", "reelaudio"]:
-            result = reel.handle_audio_command(args, user_id, username, thread_id, cl)
+            # ✅ Pass msg object for reply detection
+            result = reel.handle_audio_command(
+                cl=cl,
+                thread_id=thread_id,
+                msg=msg,  # ⬅️ Full message object
+                user_id=user_id,
+                username=username,
+                args=args
+            )
             return result
-        # ── 👤 Profile Command ─
-        # ── Add commands ──
+
+        # ── 👤 Profile Commands ──
         elif cmd in ["pfp", "profilepic"]:
-            result = profile.handle_pfp_command(args, user_id, username, thread_id, cl)
+            result = profile.handle_pfp_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
+            )
             return result
 
         elif cmd in ["profile", "info", "userinfo"]:
-            result = profile.handle_profile_command(args, user_id, username, thread_id, cl)
+            result = profile.handle_profile_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
+            )
             return result
         
+        # ── 📸 Post/Reel Repost ──
         elif cmd in ["post", "repost", "share"]:
             result = post.handle_post_command(
-            query=args,
-            user_id=user_id,
-            username=username,
-            thread_id=thread_id,
-            cl=cl,
-            session_id=config.SESSION_ID
-             )
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl,
+                session_id=config.SESSION_ID
+            )
             return result
+
+        # ── 🎨 Image Generation ──
         elif cmd in ["generate", "gen", "imagine"]:
             result = generate.handle_generate_command(
-            query=args,
-            user_id=user_id,
-            username=username,
-            thread_id=thread_id,
-            cl=cl
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
             )
             return result
 
