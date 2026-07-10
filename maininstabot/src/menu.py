@@ -10,7 +10,10 @@ U = config.USERNAME
 
 # ── Box Width 19 ──
 BOX_WIDTH = 19
-INNER_WIDTH = 17  # For content inside borders
+INNER_WIDTH = 17  # Content inside borders
+
+# ── Left Label Width (including colon) ──
+LEFT_WIDTH = 8
 
 # ── Box Characters ──
 TL = "┌"
@@ -24,27 +27,32 @@ R = "┤"
 
 
 def make_line(left: str, right: str) -> str:
-    """Format: │ left [spaces] right │ within BOX_WIDTH (19)"""
+    """Format: │ left: [right] │ with fixed left width"""
     left_str = str(left)
     right_str = str(right)
-    # Reserve 2 for borders and 1 space each side => total inner width = 15? Actually we have 19 total, 2 borders = 17 inner, with a space before and after? Let's just do simple: we want exactly 19 chars total including borders.
-    # Border: V + content + V
-    # Content: left + spaces + right, max length = 17
-    max_content = INNER_WIDTH
-    combined = len(left_str) + len(right_str)
-    if combined <= max_content:
-        spaces = " " * (max_content - combined)
-        return f"{V}{left_str}{spaces}{right_str}{V}"
+    
+    # Add colon and pad left to LEFT_WIDTH
+    left_part = left_str + ":"
+    if len(left_part) < LEFT_WIDTH:
+        left_part = left_part.ljust(LEFT_WIDTH)
+    
+    # Combine: left_part + space + right_str
+    combined = len(left_part) + 1 + len(right_str)
+    if combined <= INNER_WIDTH:
+        spaces = " " * (INNER_WIDTH - combined)
+        return f"{V}{left_part} {right_str}{spaces}{V}"
     else:
-        # Truncate right
-        max_right = max_content - len(left_str) - 1
-        right_str = right_str[:max_right] if max_right > 0 else ""
-        spaces = " " * (max_content - len(left_str) - len(right_str))
-        return f"{V}{left_str}{spaces}{right_str}{V}"
+        # Truncate right_str to fit
+        max_right = INNER_WIDTH - len(left_part) - 2  # -2 for space and one extra?
+        if max_right < 0:
+            max_right = 0
+        right_str = right_str[:max_right]
+        spaces = " " * (INNER_WIDTH - len(left_part) - 1 - len(right_str))
+        return f"{V}{left_part} {right_str}{spaces}{V}"
 
 
 def make_header(title: str) -> str:
-    """Center title inside borders: │ title │ with spaces"""
+    """Center title inside borders"""
     title_str = str(title)
     if len(title_str) > INNER_WIDTH:
         title_str = title_str[:INNER_WIDTH]
@@ -243,9 +251,10 @@ def admin_menu():
     return "\n".join(lines)
 
 
-# ── BOT INFO ──
+# ── BOT INFO (FIXED) ──
 
 def bot_info():
+    """Bot info card - Owner name fixed, aligned with colons"""
     return "\n".join([
         "",
         top_box("AYAAN AI"),
@@ -255,7 +264,7 @@ def bot_info():
         make_line("Version", "2.3.0"),
         make_line("AI", "Groq LLaMA"),
         make_line("Engine", "Python 3"),
-        make_line("Dev", f"@{config.USERNAME[:10]}"),
+        make_line("Owner", "@ayaanplugs"),  # ✅ Dev → Owner
         make_line("Status", "🟢 Online"),
         divider(),
         make_header("📊 FEATURES"),
