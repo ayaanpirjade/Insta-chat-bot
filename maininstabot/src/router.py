@@ -298,7 +298,7 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             )
             return result
 
-        elif cmd in ["profile", "info", "userinfo"]:
+        elif cmd in ["profile", "userinfo"]:
             result = profile.handle_profile_command(
                 query=args,
                 user_id=user_id,
