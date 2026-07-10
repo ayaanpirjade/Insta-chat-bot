@@ -22,6 +22,7 @@ from . import reel as reel
 from . import profile as profile
 from . import post as post
 from . import generate as generate
+from . import evil as evil
 
 import config
 
@@ -187,7 +188,44 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
                 cl=cl
             )
             return result
+        
+        # ── 👿 Evil/WormGPT Commands ──
+        elif cmd in ["evil", "worm", "wormgpt"]:
+            result = evil.handle_evil_command(
+            query=args,
+            user_id=user_id,
+            username=username,
+            thread_id=thread_id,
+            cl=cl
+             )
+            return result
 
+        elif cmd in ["evilclear", "wormclear"]:
+            result = evil.handle_evil_clear_command(
+            user_id=user_id,
+            username=username
+            )
+            return result
+
+        elif cmd in ["addadmin", "addowner"]:
+            result = evil.handle_addadmin_command(
+            query=args,
+            user_id=user_id,
+            username=username
+            )
+            return result
+
+        elif cmd in ["removeadmin", "removeowner"]:
+            result = evil.handle_removeadmin_command(
+            query=args,
+            user_id=user_id,
+            username=username
+            )
+            return result
+
+        elif cmd == "listadmins":
+            result = evil.handle_listadmins_command(user_id)
+            return result
         # ── Useful Commands ──
         elif cmd == "calc":
             return features.calculator(args)
