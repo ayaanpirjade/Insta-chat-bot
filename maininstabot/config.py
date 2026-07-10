@@ -1,7 +1,7 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          ✨ AYAAN AI ✨
 #        Configuration Loader
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
 from dotenv import load_dotenv
@@ -14,6 +14,9 @@ SESSION_ID      = os.getenv("SESSION_ID", "")
 # ── Groq AI ───────────────────────────
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
 AI_MODEL        = os.getenv("AI_MODEL", "llama-3.1-8b-instant")
+
+# ── Gemini AI (Free Fallback) ─────────
+GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")  # ⬅️ ADD THIS
 
 # ── Bot Identity ──────────────────────
 BOT_NAME        = os.getenv("BOT_NAME", "AYAAN AI")
