@@ -1,7 +1,7 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          ✨ AYAAN AI ✨
 #   Super Mobile-Optimized Menus
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import config
 
@@ -9,29 +9,23 @@ P = config.PREFIX
 U = config.USERNAME
 B = config.BRAND
 
-# Total width including borders = 22 characters (Ultra Mobile Compact!)
+# ── Constants ──
 BOX_WIDTH = 28
 INNER_WIDTH = 25
 
 # ── Box Drawing Characters ──
-TL = "╔"  # Top-Left
-TR = "╗"  # Top-Right
-BL = "╚"  # Bottom-Left
-BR = "╝"  # Bottom-Right
-H = "═"   # Horizontal
-V = "║"   # Vertical
-L = "╠"   # Left-T
-R = "╣"   # Right-T
-T = "╦"   # Top-T
-Btm = "╩" # Bottom-T
-C = "╬"   # Cross
+TL = "╔"
+TR = "╗"
+BL = "╚"
+BR = "╝"
+H = "═"
+V = "║"
 
 
 def make_line(left: str, right: str) -> str:
-    """Format a line as '║ left [spaces] right ║' of exact BOX_WIDTH (22)."""
+    """Format a line as '║ left [spaces] right ║'"""
     left_str = str(left)
     right_str = str(right)
-
     combined_len = len(left_str) + len(right_str)
     if combined_len <= INNER_WIDTH:
         spaces = " " * (INNER_WIDTH - combined_len)
@@ -41,17 +35,6 @@ def make_line(left: str, right: str) -> str:
         trunc_right = right_str[:max_right_len] if max_right_len > 0 else ""
         spaces = " " * (INNER_WIDTH - len(left_str) - len(trunc_right))
         return f"{V} {left_str}{spaces}{trunc_right} {V}"
-
-
-def make_header(title: str) -> str:
-    """Center a title inside '║ title ║' of exact BOX_WIDTH (22)."""
-    title_str = str(title)
-    if len(title_str) >= INNER_WIDTH:
-        title_str = title_str[:INNER_WIDTH]
-
-    spaces_left = (INNER_WIDTH - len(title_str)) // 2
-    spaces_right = INNER_WIDTH - len(title_str) - spaces_left
-    return f"{V} {' ' * spaces_left}{title_str}{' ' * spaces_right} {V}"
 
 
 def top_box(title: str = "") -> str:
@@ -70,119 +53,236 @@ def bottom_box() -> str:
 
 def divider() -> str:
     """Create divider line"""
-    return f"{L}{H * (BOX_WIDTH - 2)}{R}"
+    return f"{V}{H * (BOX_WIDTH - 2)}{V}"
 
+
+# ═══════════════════════════════════════════════════════════════
+#  MAIN MENU - Small & Clean
+# ═══════════════════════════════════════════════════════════════
 
 def main_menu():
-    """Main menu optimized for ultra-narrow mobile screens (22 chars width)."""
+    """Main menu - Small and clean"""
     lines = [
         "",
-        "┌────────────────────┐",
-        "│ ✨ 𝗔𝗬𝗔𝗔𝗡 𝗔𝗜 ✨   │",
-        "│ ═══════════════════ │",
-        "│ 🎮 𝗙𝗨𝗡 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦  │",
-        "│ ═══════════════════ │",
+        "┌──────────────────────────┐",
+        "│     ✨ AYAAN AI ✨       │",
+        "│     🤖 BOT MENU         │",
+        "├──────────────────────────┤",
+        "│ 📋 COMMANDS             │",
+        "├──────────────────────────┤",
         make_line(f"{P}help", "📋 Menu"),
         make_line(f"{P}ping", "🏓 Speed"),
         make_line(f"{P}info", "ℹ️ Details"),
+        make_line(f"{P}profile", "👤 Profile"),
+        make_line(f"{P}stalk", "🕵️ Instagram"),
+        "├──────────────────────────┤",
+        "│ 🎵 MUSIC                │",
+        "├──────────────────────────┤",
+        make_line(f"{P}musiccmd", "🎵 All Music"),
+        "├──────────────────────────┤",
+        "│ 🎬 REELS                │",
+        "├──────────────────────────┤",
+        make_line(f"{P}reelcmd", "🎬 All Reel"),
+        "├──────────────────────────┤",
+        "│ 🎨 GENERATE             │",
+        "├──────────────────────────┤",
+        make_line(f"{P}generate", "🖼️ AI Image"),
+        "├──────────────────────────┤",
+        "│ 🎮 GAMES                │",
+        "├──────────────────────────┤",
+        make_line(f"{P}gamescmd", "🎮 All Games"),
+        "├──────────────────────────┤",
+        "│ 🛠️ UTILITIES            │",
+        "├──────────────────────────┤",
+        make_line(f"{P}utilscmd", "🛠️ All Utils"),
+        "├──────────────────────────┤",
+        "│ 👑 ADMIN                │",
+        "├──────────────────────────┤",
+        make_line(f"{P}admincmd", "👑 Admin"),
+        "├──────────────────────────┤",
+        "│ 💬 AI CHAT              │",
+        "├──────────────────────────┤",
+        make_line(f"@{U}", "🤖 Chat AI"),
+        "└──────────────────────────┘",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  MUSIC COMMANDS MENU
+# ═══════════════════════════════════════════════════════════════
+
+def music_menu():
+    """All music commands"""
+    lines = [
+        "",
+        "┌──────────────────────────┐",
+        "│     🎵 MUSIC MENU       │",
+        "│     All Music Commands  │",
+        "├──────────────────────────┤",
+        make_line(f"{P}play", "🎵 Play Song"),
+        make_line(f"{P}vn", "🎤 Voice Note"),
+        make_line(f"{P}tts", "🔊 Text to Speech"),
+        make_line(f"{P}speak", "🧠 AI Voice"),
+        make_line(f"{P}audio", "🎵 Reel Audio"),
+        "├──────────────────────────┤",
+        "│ 💡 Usage:               │",
+        "│ !play song_name         │",
+        "│ !vn youtube_link        │",
+        "│ !tts text_to_speak      │",
+        "│ !speak question         │",
+        "│ !audio reel_link        │",
+        "└──────────────────────────┘",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  REEL COMMANDS MENU
+# ═══════════════════════════════════════════════════════════════
+
+def reel_menu():
+    """All reel commands"""
+    lines = [
+        "",
+        "┌──────────────────────────┐",
+        "│     🎬 REEL MENU        │",
+        "│     All Reel Commands   │",
+        "├──────────────────────────┤",
+        make_line(f"{P}reel", "📥 Download Reel"),
+        make_line(f"{P}dreel", "📥 Download Reel"),
+        make_line(f"{P}audio", "🎵 Reel Audio"),
+        make_line(f"{P}post", "📸 Repost Reel"),
+        "├──────────────────────────┤",
+        "│ 💡 Usage:               │",
+        "│ !reel link_or_reply     │",
+        "│ !audio link_or_reply    │",
+        "│ !post link              │",
+        "└──────────────────────────┘",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  GAMES MENU
+# ═══════════════════════════════════════════════════════════════
+
+def games_menu():
+    """All games commands"""
+    lines = [
+        "",
+        "┌──────────────────────────┐",
+        "│     🎮 GAMES MENU       │",
+        "│     All Games Commands  │",
+        "├──────────────────────────┤",
+        make_line(f"{P}trivia", "❓ Quiz"),
+        make_line(f"{P}guess", "🔢 Guess Number"),
+        make_line(f"{P}scramble", "🔤 Word Scramble"),
+        make_line(f"{P}wordseek", "🔎 Wordle"),
+        make_line(f"{P}rps", "✂️ Rock Paper"),
+        make_line(f"{P}wyr", "⚡ Would You Rather"),
+        make_line(f"{P}emoji", "😄 Emoji Guess"),
+        make_line(f"{P}tod", "🎯 Truth or Dare"),
+        "├──────────────────────────┤",
+        make_line(f"{P}score", "⭐ My Stats"),
+        make_line(f"{P}top", "🏆 Leaderboard"),
+        make_line(f"{P}daily", "🎁 Daily Bonus"),
+        "├──────────────────────────┤",
+        "│ 💡 Type !quit to exit   │",
+        "└──────────────────────────┘",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  UTILITIES MENU
+# ═══════════════════════════════════════════════════════════════
+
+def utils_menu():
+    """All utility commands"""
+    lines = [
+        "",
+        "┌──────────────────────────┐",
+        "│     🛠️ UTILITIES MENU   │",
+        "│     All Utils Commands  │",
+        "├──────────────────────────┤",
+        make_line(f"{P}calc", "➗ Calculator"),
+        make_line(f"{P}time", "🕐 Current Time"),
+        make_line(f"{P}weather", "🌤️ Weather"),
+        make_line(f"{P}horoscope", "🔮 Horoscope"),
+        make_line(f"{P}choose", "🤔 Pick One"),
+        make_line(f"{P}remind", "⏰ Reminder"),
+        make_line(f"{P}generate", "🎨 AI Image"),
+        "├──────────────────────────┤",
         make_line(f"{P}joke", "😂 Joke"),
         make_line(f"{P}fact", "🧠 Fact"),
         make_line(f"{P}quote", "💬 Quote"),
-        make_line(f"{P}roast", "🔥 @user"),
-        make_line(f"{P}8ball", "🎱 Query"),
-        make_line(f"{P}roll", "🎲 Dice"),
-        make_line(f"{P}flip", "🪙 Coin"),
-        make_line(f"{P}choose", "🤔 Pick"),
-        make_line(f"{P}meme", "🚀 Meme"),
-        make_line(f"{P}play", "🎵 Song"),
-        make_line(f"{P}vn", "🎤 Voice"),
-        make_line(f"{P}tts", "🔊 Speak"),
-        make_line(f"{P}reel", "🎬 Reel"),   
-        make_line(f"{P}audio", "🎵 Audio"), 
-        make_line(f"{P}speak", "🧠 AI Voice"),
-        make_line(f"{P}profile", "👤 Profile Info"),
-        "│ ═══════════════════ │",
-        "│ 🛠️ 𝗧𝗢𝗢𝗟𝗦 & 𝗨𝗧𝗜𝗟𝗦 │",
-        "│ ═══════════════════ │",
-        make_line(f"{P}calc", "➗ Math"),
-        make_line(f"{P}time", "🕐 Clock"),
-        make_line(f"{P}weather", "🌤️ Forecast"),
-        make_line(f"{P}stalk", "🕵️ Instagram"),
-        make_line(f"{P}remind", "⏰ Reminder"),
-        make_line(f"{P}horoscope", "🔮 Zodiac"),
-        "│ ═══════════════════ │",
-        "│ 🕹️ 𝗚𝗔𝗠𝗘𝗦 & 𝗦𝗧𝗔𝗧𝗦 │",
-        "│ ═══════════════════ │",
-        make_line(f"{P}trivia", "❓ Quiz"),
-        make_line(f"{P}guess", "🔢 Guess"),
-        make_line(f"{P}scramble", "🔤 Word"),
-        make_line(f"{P}wordseek", "🔎 Wordle"),
-        make_line(f"{P}rps", "✂️ RPS"),
-        make_line(f"{P}wyr", "⚡ Rather"),
-        make_line(f"{P}emoji", "😄 Emoji"),
-        make_line(f"{P}tod", "🎯 T/D"),
-        make_line(f"{P}score", "⭐ Stats"),
-        make_line(f"{P}top", "🏆 Leader"),
-        make_line(f"{P}daily", "🎁 Daily"),
-        "│ ═══════════════════ │",
-        "│ 🤖 𝗔𝗜 𝗖𝗛𝗔𝗧𝗙𝗔𝗟𝗟  │",
-        "│ ═══════════════════ │",
-        make_line(f"@{U}", "💬 Chat AI"),
-        "└────────────────────┘",
-        " ✨ AYAAN AI • ⚡ Groq",
-        "──────────────────────",
+        make_line(f"{P}roast", "🔥 Roast"),
+        make_line(f"{P}8ball", "🎱 8Ball"),
+        make_line(f"{P}roll", "🎲 Roll Dice"),
+        make_line(f"{P}flip", "🪙 Flip Coin"),
+        "└──────────────────────────┘",
+        "",
     ]
     return "\n".join(lines)
 
 
-def games_menu():
-    """Games menu optimized for 22 chars width."""
+# ═══════════════════════════════════════════════════════════════
+#  ADMIN MENU
+# ═══════════════════════════════════════════════════════════════
+
+def admin_menu():
+    """Admin commands menu"""
     lines = [
         "",
-        "┌────────────────────┐",
-        "│ 🎮 𝗚𝗔𝗠𝗘𝗦 𝗠𝗘𝗡𝗨   │",
-        "│ ═══════════════════ │",
-        "│ 🧠 𝗕𝗥𝗔𝗜𝗡 𝗣𝗨𝗭𝗭𝗟𝗘𝗦 │",
-        "│ ═══════════════════ │",
-        make_line(f"{P}trivia", "❓ Quiz"),
-        make_line(f"{P}scramble", "🔤 Word"),
-        make_line(f"{P}wordseek", "🔎 Wordle"),
-        make_line(f"{P}emoji", "😄 Emoji"),
-        "│ ═══════════════════ │",
-        "│ 🎲 𝗤𝗨𝗜𝗖𝗞 𝗣𝗟𝗔𝗬    │",
-        "│ ═══════════════════ │",
-        make_line(f"{P}guess", "🔢 Guess"),
-        make_line(f"{P}rps", "✂️ RPS"),
-        make_line(f"{P}wyr", "⚡ Rather"),
-        make_line(f"{P}tod", "🎯 T/D"),
-        "│ ═══════════════════ │",
-        "│ 📊 𝗣𝗘𝗥𝗙𝗢𝗥𝗠𝗔𝗡𝗖𝗘  │",
-        "│ ═══════════════════ │",
-        make_line(f"{P}score", "⭐ My Stats"),
-        make_line(f"{P}top", "🏆 Leaderboard"),
-        "└────────────────────┘",
-        f" 💫 Type {P}quit to exit",
-        "──────────────────────",
+        "┌──────────────────────────┐",
+        "│     👑 ADMIN MENU       │",
+        "│     Admin Commands      │",
+        "├──────────────────────────┤",
+        make_line(f"{P}evil", "👿 Evil AI"),
+        make_line(f"{P}evilclear", "🧹 Clear Evil"),
+        make_line(f"{P}addadmin", "➕ Add Admin"),
+        make_line(f"{P}removeadmin", "➖ Remove Admin"),
+        make_line(f"{P}listadmins", "📋 List Admins"),
+        make_line(f"{P}toggle", "🔧 Toggle Command"),
+        make_line(f"{P}cmdstatus", "📊 Command Status"),
+        "├──────────────────────────┤",
+        make_line(f"{P}add", "👤 Add User"),
+        make_line(f"{P}remove", "👤 Remove User"),
+        make_line(f"{P}changename", "📝 Change Group Name"),
+        make_line(f"{P}changepfp", "🖼️ Change Group PFP"),
+        make_line(f"{P}groupinfo", "📊 Group Info"),
+        make_line(f"{P}groupadmins", "👑 Group Admins"),
+        "└──────────────────────────┘",
+        "",
     ]
     return "\n".join(lines)
 
 
+# ═══════════════════════════════════════════════════════════════
+#  BOT INFO
+# ═══════════════════════════════════════════════════════════════
+
 def bot_info():
-    """Bot info card - Final"""
+    """Bot info card"""
     return "\n".join([
         "",
-        ".      ✨ AYAAN AI ✨",
+        "       ✨ AYAAN AI ✨",
         "      🤖 BOT STATUS",
-        "─────────────────",
+        "──────────────────────────",
         "🤖 Name      : AYAAN AI",
         "📌 Version   : 2.3.0",
         "⚡ AI Model  : Groq LLaMA",
         "🛠️ Engine   : Python 3",
         "👨‍💻 Dev     : @ayaanplugs",
         "📡 Status   : 🟢 Online",
-        "─────────────────",
+        "──────────────────────────",
         "      📊 FEATURES",
-        "─────────────────",
+        "──────────────────────────",
         "🎮 Games    : 8+ Games",
         "🛠️ Utils    : 10+ Tools",
         "🎨 Generate : Image AI",
@@ -190,31 +290,38 @@ def bot_info():
         "🔊 TTS      : Text to Speech",
         "🎬 Reels    : Download & Audio",
         "🎥 Post     : Feed Post",
-        "─────────────────",
+        "──────────────────────────",
         "    💬 Type !help",
         "",
     ])
 
 
-def welcome_message(username: str = "there"):
-    """Welcome message optimized for 22 chars width."""
-    lines = [
-        "",
-        "┌────────────────────┐",
-        f"│ 👋 @{username[:12]}       │",
-        "│ ═══════════════════ │",
-        "│ ✨ 𝗔𝗬𝗔𝗔𝗡 𝗔𝗜 ✨   │",
-        "│ ═══════════════════ │",
-        f"│ Type {P}help to start │",
-        f"│ Tag @{U[:12]} to chat │",
-        "└────────────────────┘",
-        "──────────────────────",
-    ]
-    return "\n".join(lines)
+# ═══════════════════════════════════════════════════════════════
+#  WELCOME MESSAGE
+# ═══════════════════════════════════════════════════════════════
 
+def welcome_message(username: str = "there"):
+    """Welcome message"""
+    return "\n".join([
+        "",
+        "┌──────────────────────────┐",
+        f"│ 👋 @{username[:15]}    │",
+        "├──────────────────────────┤",
+        "│     ✨ AYAAN AI ✨       │",
+        "├──────────────────────────┤",
+        f"│ Type {P}help to start  │",
+        f"│ Tag @{U[:12]} to chat  │",
+        "└──────────────────────────┘",
+        "",
+    ])
+
+
+# ═══════════════════════════════════════════════════════════════
+#  SCORE CARD
+# ═══════════════════════════════════════════════════════════════
 
 def score_card(username: str, stats: dict):
-    """User score card optimized for 22 chars width."""
+    """User score card"""
     trivia = stats.get("trivia_wins", 0)
     guess = stats.get("guess_wins", 0)
     scramble = stats.get("scramble_wins", 0)
@@ -223,43 +330,100 @@ def score_card(username: str, stats: dict):
     total = stats.get("total_score", 0)
     streak = stats.get("streak", 0)
 
-    lines = [
+    return "\n".join([
         "",
-        "┌────────────────────┐",
-        f"│ 🏆 @{username[:10]}     │",
-        "│ ═══════════════════ │",
+        "┌──────────────────────────┐",
+        f"│ 🏆 @{username[:12]}    │",
+        "├──────────────────────────┤",
         make_line("🧠 Trivia", f"{trivia}"),
         make_line("🔢 Guess", f"{guess}"),
         make_line("🔤 Scramble", f"{scramble}"),
         make_line("🔎 Wordseek", f"{wordseek}"),
         make_line("✂️ RPS", f"{rps}"),
-        "│ ═══════════════════ │",
+        "├──────────────────────────┤",
         make_line("⭐ Total", f"{total} pts"),
         make_line("🔥 Streak", f"{streak} days"),
-        "└────────────────────┘",
-        "──────────────────────",
-    ]
-    return "\n".join(lines)
+        "└──────────────────────────┘",
+        "",
+    ])
 
+
+# ═══════════════════════════════════════════════════════════════
+#  LEADERBOARD
+# ═══════════════════════════════════════════════════════════════
 
 def leaderboard(players: list):
-    """Global leaderboard card optimized for 22 chars width."""
+    """Global leaderboard"""
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     lines = [
         "",
-        "┌────────────────────┐",
-        "│ 🏆 𝗟𝗘𝗔𝗗𝗘𝗥𝗕𝗢𝗔𝗥𝗗 │",
-        "│ ═══════════════════ │",
+        "┌──────────────────────────┐",
+        "│ 🏆 𝗟𝗘𝗔𝗗𝗘𝗥𝗕𝗢𝗔𝗥𝗗     │",
+        "├──────────────────────────┤",
     ]
 
     if not players:
-        lines.append("│ No scores yet!     │")
+        lines.append("│ No scores yet!          │")
     else:
         for i, (name, score) in enumerate(players[:10]):
             medal = medals[i] if i < len(medals) else str(i + 1)
             name = name[:10]
             lines.append(make_line(f"{medal} @{name}", f"{score}"))
 
-    lines.append("└────────────────────┘")
-    lines.append("──────────────────────")
+    lines.append("└──────────────────────────┘")
+    lines.append("")
     return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  MENU DISPATCHER
+# ═══════════════════════════════════════════════════════════════
+
+def get_menu(menu_name: str) -> str:
+    """Get menu by name"""
+    menus = {
+        "main": main_menu,
+        "music": music_menu,
+        "reel": reel_menu,
+        "games": games_menu,
+        "utils": utils_menu,
+        "admin": admin_menu,
+    }
+    return menus.get(menu_name, main_menu)()
+
+
+# ═══════════════════════════════════════════════════════════════
+#  STANDALONE TEST
+# ═══════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    print("\n" + "=" * 60)
+    print("     📋 MENU PREVIEW")
+    print("=" * 60)
+
+    print("\n1. MAIN MENU")
+    print("-" * 40)
+    print(main_menu())
+
+    print("\n2. MUSIC MENU")
+    print("-" * 40)
+    print(music_menu())
+
+    print("\n3. REEL MENU")
+    print("-" * 40)
+    print(reel_menu())
+
+    print("\n4. GAMES MENU")
+    print("-" * 40)
+    print(games_menu())
+
+    print("\n5. UTILITIES MENU")
+    print("-" * 40)
+    print(utils_menu())
+
+    print("\n6. ADMIN MENU")
+    print("-" * 40)
+    print(admin_menu())
+
+    print("\n" + "=" * 60)
+    print("✨ All Menus Loaded!")
