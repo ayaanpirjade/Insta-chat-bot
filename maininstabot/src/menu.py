@@ -286,14 +286,21 @@ def bot_info():
 # ── WELCOME ──
 
 def welcome_message(username: str = "there"):
+    """Welcome message - Attractive"""
     return "\n".join([
         "",
-        top_box(f"@{username[:10]}"),
-        make_header("✨ AYAAN AI ✨"),
-        divider(),
-        make_line(f"Type {P}help  ", ""),
-        make_line(f"Tag @{U[:10]} ", "🤖 Chat"),
-        bottom_box(),
+        "┌────────────────────┐",
+        f"│  ✨ AYAAN AI ✨    │",
+        f"│  👋 Hey @{username[:12]}!  │",
+        "├────────────────────┤",
+        "│  🚀 I'm here to    │",
+        "│  help you out!     │",
+        "├────────────────────┤",
+        f"│  📋 Type !help    │",
+        f"│  💬 Tag @{config.USERNAME[:12]} to chat│",
+        "├────────────────────┤",
+        "│  ⚡ Groq AI Powered │",
+        "└────────────────────┘",
         "",
     ])
 
