@@ -209,7 +209,7 @@ def utils_menu():
         make_line("!weather  ", "🌤️ Weather"),
         make_line("!horoscope  ", "🔮 Zodiac"),
         make_line("!choose  ", "🤔 Pick"),
-        make_line("!remind  , "⏰ Remind"),
+        make_line("!remind  ", "⏰ Remind"),
         make_line("!generate  ", "🎨 Image"),
         divider(),
         make_line("!joke  ", "😂 Joke"),
