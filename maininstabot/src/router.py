@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          ✨ AYAAN AI ✨
-#      Central Message Router - FIXED
+#      Central Message Router - FULL WITH TOGGLE SYSTEM
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import re
@@ -23,8 +23,25 @@ from . import profile as profile
 from . import post as post
 from . import generate as generate
 from . import evil as evil
+from . import command_toggle as command_toggle
 
 import config
+
+
+def check_command_permission(cmd: str, user_id: str, username: str) -> Optional[str]:
+    """
+    Check if user can use this command based on toggle system
+    Returns: None if allowed, error message if not
+    """
+    can_use, reason = command_toggle.can_user_use_command(cmd, user_id)
+    if not can_use:
+        if reason == "admin_only":
+            return f"🔒 Command '!{cmd}' is ADMIN ONLY! Only admins can use it. 😈"
+        elif reason == "unknown":
+            return f"⚠️ Unknown command '!{cmd}'. Type !help for commands."
+        else:
+            return f"❌ You don't have permission to use '!{cmd}'."
+    return None
 
 
 def process_message(text: str, thread_id: str, user_id: str, username: str, is_group: bool, cl, msg=None) -> str | None:
@@ -75,79 +92,133 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
         cmd = parts[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
 
-        # ── Fun Commands ──
-        if cmd == "help":
-            return menu.main_menu()
-        elif cmd == "games":
-            return menu.games_menu()
-        elif cmd == "ping":
-            return "🏓 Pong! I'm alive and kicking. ⚡"
-        elif cmd == "info":
-            return menu.bot_info()
-        elif cmd in ["joke", "jokes"]:
-            return features.get_joke()
-        elif cmd in ["fact", "facts"]:
-            return features.get_fact()
-        elif cmd in ["quote", "quotes"]:
-            return features.get_quote()
-        elif cmd == "roast":
-            target = args if args else f"@{username}"
-            return features.get_roast(target)
-        elif cmd in ["8ball", "8 ball"]:
-            return features.get_8ball(args)
-        elif cmd == "roll":
-            return features.roll_dice(args)
-        elif cmd == "flip":
-            return features.flip_coin()
-        elif cmd == "meme":
-            return features.get_meme()
-        elif cmd == "play":
-            return music.play_song(args, user_id, username, thread_id, cl)
-        
-        # ── 🎵 Voice Note Command (YouTube) ──
-        elif cmd in ["vn", "voicenote"]:
-            result = voice_note.handle_vn_command(args, user_id, username, thread_id, cl)
+        # ── 🔧 COMMAND TOGGLE SYSTEM (Admin Only) ──
+        if cmd in ["toggle", "togglecmd"]:
+            if not evil.is_admin(user_id):
+                return "🚫 Only admins can toggle commands! Bhosdike! 😈"
+            result = command_toggle.handle_toggle_command(args, user_id, username)
             return result
 
-        # ── 🔊 Text to Speech ──
-        elif cmd in ["tts", "say"]:
-            result = tts.handle_tts_command(args, user_id, username, thread_id, cl)
+        elif cmd == "togglepublic":
+            if not evil.is_admin(user_id):
+                return "🚫 Only admins can do this! Bhosdike! 😈"
+            result = command_toggle.handle_togglepublic_command(args, user_id, username)
             return result
 
-        # ── 🤖 AI + Voice ──
-        elif cmd in ["speak", "ask", "voiceai"]:
-            result = tts.handle_speak_command(args, user_id, username, thread_id, cl)
+        elif cmd == "toggleadmin":
+            if not evil.is_admin(user_id):
+                return "🚫 Only admins can do this! Bhosdike! 😈"
+            result = command_toggle.handle_toggleadmin_command(args, user_id, username)
+            return result
+
+        elif cmd in ["cmdstatus", "commandstatus"]:
+            result = command_toggle.handle_cmdstatus_command(args, user_id)
+            return result
+
+        elif cmd == "resettoggle":
+            if not evil.is_admin(user_id):
+                return "🚫 Only admins can reset! Bhosdike! 😈"
+            result = command_toggle.handle_reset_toggle_command(user_id)
+            return result
+
+        # ── 👿 EVIL/WORMGPT COMMANDS (Admin Only by Default) ──
+        elif cmd in ["evil", "worm", "wormgpt"]:
+            # Check permission
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = evil.handle_evil_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
+            )
+            return result
+
+        elif cmd in ["evilclear", "wormclear"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = evil.handle_evil_clear_command(
+                user_id=user_id,
+                username=username
+            )
+            return result
+
+        elif cmd in ["addadmin", "addowner"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = evil.handle_addadmin_command(
+                query=args,
+                user_id=user_id,
+                username=username
+            )
+            return result
+
+        elif cmd in ["removeadmin", "removeowner"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = evil.handle_removeadmin_command(
+                query=args,
+                user_id=user_id,
+                username=username
+            )
+            return result
+
+        elif cmd == "listadmins":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = evil.handle_listadmins_command(user_id)
             return result
 
         # ── 🎬 REEL COMMANDS (WITH REPLY DETECTION) ──
         elif cmd in ["reel", "dreel", "dlreel"]:
-            # ✅ Pass msg object for reply detection
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
             result = reel.handle_reel_command(
                 cl=cl,
                 thread_id=thread_id,
-                msg=msg,  # ⬅️ Full message object
+                msg=msg,
                 user_id=user_id,
                 username=username,
                 args=args
             )
             return result
 
-        # ── 🎵 AUDIO EXTRACT (WITH REPLY DETECTION) ──
+        # ── 🎵 AUDIO EXTRACT ──
         elif cmd in ["audio", "reelaudio"]:
-            # ✅ Pass msg object for reply detection
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
             result = reel.handle_audio_command(
                 cl=cl,
                 thread_id=thread_id,
-                msg=msg,  # ⬅️ Full message object
+                msg=msg,
                 user_id=user_id,
                 username=username,
                 args=args
             )
             return result
 
-        # ── 👤 Profile Commands ──
-        elif cmd in ["pfp", "profilepic"]:
-            result = profile.handle_pfp_command(
+        # ── 🎨 IMAGE GENERATION ──
+        elif cmd in ["generate", "gen", "imagine"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = generate.handle_generate_command(
                 query=args,
                 user_id=user_id,
                 username=username,
@@ -156,18 +227,12 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             )
             return result
 
-        elif cmd in ["profile", "info", "userinfo"]:
-            result = profile.handle_profile_command(
-                query=args,
-                user_id=user_id,
-                username=username,
-                thread_id=thread_id,
-                cl=cl
-            )
-            return result
-        
-        # ── 📸 Post/Reel Repost ──
+        # ── 📸 POST/REEL REPOST ──
         elif cmd in ["post", "repost", "share"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
             result = post.handle_post_command(
                 query=args,
                 user_id=user_id,
@@ -178,9 +243,13 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             )
             return result
 
-        # ── 🎨 Image Generation ──
-        elif cmd in ["generate", "gen", "imagine"]:
-            result = generate.handle_generate_command(
+        # ── 👤 PROFILE COMMANDS ──
+        elif cmd in ["pfp", "profilepic"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = profile.handle_pfp_command(
                 query=args,
                 user_id=user_id,
                 username=username,
@@ -188,88 +257,136 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
                 cl=cl
             )
             return result
-        
-        # ── 👿 Evil/WormGPT Commands ──
-        elif cmd in ["evil", "worm", "wormgpt"]:
-            result = evil.handle_evil_command(
-            query=args,
-            user_id=user_id,
-            username=username,
-            thread_id=thread_id,
-            cl=cl
-             )
-            return result
 
-        elif cmd in ["evilclear", "wormclear"]:
-            result = evil.handle_evil_clear_command(
-            user_id=user_id,
-            username=username
+        elif cmd in ["profile", "info", "userinfo"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = profile.handle_profile_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
             )
             return result
 
-        elif cmd in ["addadmin", "addowner"]:
-            result = evil.handle_addadmin_command(
-            query=args,
-            user_id=user_id,
-            username=username
-            )
+        # ── 🎵 VOICE NOTE (YouTube) ──
+        elif cmd in ["vn", "voicenote"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = voice_note.handle_vn_command(args, user_id, username, thread_id, cl)
             return result
 
-        elif cmd in ["removeadmin", "removeowner"]:
-            result = evil.handle_removeadmin_command(
-            query=args,
-            user_id=user_id,
-            username=username
-            )
+        # ── 🔊 TEXT TO SPEECH ──
+        elif cmd in ["tts", "say"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = tts.handle_tts_command(args, user_id, username, thread_id, cl)
             return result
 
-        elif cmd == "listadmins":
-            result = evil.handle_listadmins_command(user_id)
+        # ── 🤖 AI + VOICE ──
+        elif cmd in ["speak", "ask", "voiceai"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = tts.handle_speak_command(args, user_id, username, thread_id, cl)
             return result
-        # ── Useful Commands ──
-        elif cmd == "calc":
-            return features.calculator(args)
-        elif cmd == "time":
-            return features.get_time()
-        elif cmd == "weather":
-            return features.get_weather(args)
-        elif cmd == "stalk":
-            return features.stalk_profile(args, cl)
-        elif cmd == "horoscope":
-            return features.get_horoscope(args)
-        elif cmd == "choose":
-            return features.choose_option(args)
 
-        # ── Games Commands ──
-        elif cmd == "trivia":
-            return game.start_trivia(thread_id)
-        elif cmd == "guess":
-            return game.start_guess(thread_id)
-        elif cmd == "scramble":
-            return game.start_scramble(thread_id)
-        elif cmd == "rps":
-            return game.start_rps(thread_id)
-        elif cmd == "wyr":
-            return game.start_wyr(thread_id)
-        elif cmd == "emoji":
-            return game.start_emoji(thread_id)
-        elif cmd == "tod":
-            return game.start_tod(thread_id)
-        elif cmd == "wordseek":
-            return game.start_wordseek(thread_id)
+        # ── 🎵 MUSIC ──
+        elif cmd == "play":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
+            result = music.play_song(args, user_id, username, thread_id, cl)
+            return result
 
-        # ── Stats Commands ──
+        # ── 📊 STATS COMMANDS ──
         elif cmd == "score":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
             stats = store.get_user(user_id, username)
             return menu.score_card(username, stats)
+
         elif cmd in ["top", "leaderboard"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
             players = store.get_leaderboard()
             return menu.leaderboard(players)
+
         elif cmd == "daily":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
             return features.claim_daily(user_id, username)
 
-        # ── Scheduler / Reminders ──
+        # ── 🎮 GAMES COMMANDS ──
+        elif cmd == "trivia":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_trivia(thread_id)
+
+        elif cmd == "guess":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_guess(thread_id)
+
+        elif cmd == "scramble":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_scramble(thread_id)
+
+        elif cmd == "rps":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_rps(thread_id)
+
+        elif cmd == "wyr":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_wyr(thread_id)
+
+        elif cmd == "emoji":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_emoji(thread_id)
+
+        elif cmd == "tod":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_tod(thread_id)
+
+        elif cmd == "wordseek":
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            return game.start_wordseek(thread_id)
+
+        # ── 📅 SCHEDULER ──
         elif cmd in ["remind", "reminder", "schedule"]:
+            perm_check = check_command_permission(cmd, user_id, username)
+            if perm_check:
+                return perm_check
+            
             send_at, message = scheduler.parse_reminder(args)
             if send_at and message:
                 scheduler.add_reminder(send_at, thread_id, message)
@@ -280,6 +397,59 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
                     f"👉 {p}remind in 10 minutes: take break\n"
                     f"👉 {p}remind at 9:30pm: drink water"
                 )
+
+        # ── 🛠️ UTILITY COMMANDS ──
+        elif cmd == "help":
+            return menu.main_menu()
+
+        elif cmd == "games":
+            return menu.games_menu()
+
+        elif cmd == "ping":
+            return "🏓 Pong! I'm alive and kicking. ⚡"
+
+        elif cmd in ["joke", "jokes"]:
+            return features.get_joke()
+
+        elif cmd in ["fact", "facts"]:
+            return features.get_fact()
+
+        elif cmd in ["quote", "quotes"]:
+            return features.get_quote()
+
+        elif cmd == "roast":
+            target = args if args else f"@{username}"
+            return features.get_roast(target)
+
+        elif cmd in ["8ball", "8 ball"]:
+            return features.get_8ball(args)
+
+        elif cmd == "roll":
+            return features.roll_dice(args)
+
+        elif cmd == "flip":
+            return features.flip_coin()
+
+        elif cmd == "meme":
+            return features.get_meme()
+
+        elif cmd == "calc":
+            return features.calculator(args)
+
+        elif cmd == "time":
+            return features.get_time()
+
+        elif cmd == "weather":
+            return features.get_weather(args)
+
+        elif cmd == "stalk":
+            return features.stalk_profile(args, cl)
+
+        elif cmd == "horoscope":
+            return features.get_horoscope(args)
+
+        elif cmd == "choose":
+            return features.choose_option(args)
 
         # If prefix used but command unknown
         return f"⚠️ Unknown command. Type {p}help to see the full menu!"
