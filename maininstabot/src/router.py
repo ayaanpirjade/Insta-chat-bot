@@ -77,8 +77,29 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
         cmd = parts[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
 
+        # ── 📋 MENU COMMANDS ──
+        if cmd == "help":
+            return menu.main_menu()
+
+        elif cmd in ["musiccmd", "musicmenu"]:
+            return menu.music_menu()
+
+        elif cmd in ["reelcmd", "reelmenu"]:
+            return menu.reel_menu()
+
+        elif cmd in ["gamescmd", "gamesmenu"]:
+            return menu.games_menu()
+
+        elif cmd in ["utilscmd", "utilsmenu"]:
+            return menu.utils_menu()
+
+        elif cmd in ["admincmd", "adminmenu"]:
+            if not evil.is_admin(user_id):
+                return "🔒 Admin menu is ADMIN ONLY! 😈"
+            return menu.admin_menu()
+
         # ── 🔧 COMMAND TOGGLE SYSTEM (Admin Only) ──
-        if cmd in ["toggle", "togglecmd"]:
+        elif cmd in ["toggle", "togglecmd"]:
             if not evil.is_admin(user_id):
                 return "🚫 Only admins can toggle commands! Bhosdike! 😈"
             result = command_toggle.handle_toggle_command(args, user_id, username)
@@ -154,7 +175,7 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             result = evil.handle_listadmins_command(user_id)
             return result
 
-        # ── 👑 GROUP ADMIN COMMANDS (Sabke Liye) ──
+        # ── 👑 GROUP COMMANDS (Sabke Liye) ──
         elif cmd in ["changepfp", "setpfp", "grouppfp"]:
             result = group_admin.handle_changepfp_command(
                 query=args,
@@ -358,9 +379,6 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
                 )
 
         # ── 🛠️ UTILITY COMMANDS ──
-        elif cmd == "help":
-            return menu.main_menu()
-
         elif cmd == "games":
             return menu.games_menu()
 
