@@ -1,7 +1,7 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          ✨ AYAAN AI ✨
-#      Instagram Chatbot Server
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#      Instagram Chatbot Server - WITH AUTO BREAK
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import sys
 import time
@@ -29,6 +29,10 @@ session_manager = RotatingSessionManager()
 # ── Track processed messages ──
 processed_ids = set()
 
+# ── AUTO BREAK CONFIG ──
+BREAK_INTERVAL = 3600  # 1 hour polling
+BREAK_DURATION = 600   # 10 minutes break
+
 
 def send_message(thread_id: str, text: str):
     """Send message through active client"""
@@ -44,11 +48,11 @@ def handle_incoming_message(msg, thread, my_id: str):
     """Processes incoming message"""
     try:
         msg_id = str(msg.id)
-        
+
         if msg_id in processed_ids:
             return
         processed_ids.add(msg_id)
-        
+
         if len(processed_ids) > 5000:
             processed_ids.clear()
 
@@ -143,9 +147,31 @@ def main():
         print("📌 Bot will retry in next polling cycle...")
 
     print(f"\n🤖 LIVE! Polling every {config.POLL_INTERVAL} seconds...\n")
+    print(f"⏳ Auto-break: {BREAK_INTERVAL//60} min polling → {BREAK_DURATION//60} min break\n")
+
+    # ── AUTO BREAK TIMER ──
+    last_break_time = time.time()
 
     while True:
         try:
+            # ── CHECK IF BREAK NEEDED ──
+            if time.time() - last_break_time >= BREAK_INTERVAL:
+                print("\n" + "=" * 50)
+                print("⏳ Taking a 10-minute break to avoid rate limits...")
+                print("   Bot will resume automatically after 10 minutes.")
+                print("=" * 50 + "\n")
+                time.sleep(BREAK_DURATION)
+                last_break_time = time.time()
+                print("\n🔄 Resuming polling...\n")
+                # Refresh session after break
+                try:
+                    cl, _ = session_manager.get_client()
+                    print("✅ Session refreshed after break.")
+                except Exception as e:
+                    print(f"⚠️ Session refresh failed: {e}")
+                continue  # Skip this cycle, go to next loop
+
+            # ── NORMAL POLLING ──
             cl, _ = session_manager.get_client()
             my_id = session_manager.get_my_id()
 
@@ -200,13 +226,30 @@ def main():
             break
         except Exception as e:
             print(f"⚠️ Polling error: {e}")
-            if "403" in str(e):
+            error_str = str(e).lower()
+
+            if "403" in error_str or "rate_limit" in error_str:
                 print("🔴 Account blocked or rate limited!")
-                print("💡 Try:")
-                print("   • Use VPN or mobile hotspot")
-                print("   • Wait 30-60 minutes")
-                print("   • Use different account")
-                time.sleep(60)  # Wait 60 seconds before retry
+                print("💡 Taking an extra 5-minute break...")
+                time.sleep(300)  # Extra 5 min break
+                # Reset break timer to avoid immediate break after resume
+                last_break_time = time.time()
+                # Refresh session
+                try:
+                    cl, _ = session_manager.get_client()
+                    print("✅ Session refreshed.")
+                except:
+                    pass
+            elif "login_required" in error_str or "session" in error_str:
+                print("🔄 Session expired, relogging...")
+                try:
+                    cl, _ = session_manager.get_client()
+                    print("✅ Re-logged in.")
+                except Exception as relog_err:
+                    print(f"❌ Relogin failed: {relog_err}")
+                    time.sleep(30)
+            else:
+                time.sleep(5)
 
         time.sleep(config.POLL_INTERVAL)
 
