@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          🔧 AYAAN AI - Utility Functions
-#          With Instagram Image Bypass (Video Conversion)
+#          Simple Image Upload with Video Bypass (2 sec)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -34,8 +34,9 @@ except ImportError:
 
 def convert_image_to_mp4(image_path: str, output_video_path: str, duration_sec: int = 2) -> bool:
     """
-    Converts a static image file into a 2-second H.264 encoded MP4 video.
+    Converts a static image file into a H.264 encoded MP4 video.
     Instagram blocks standard image uploads, so this bypasses that.
+    Duration set to 2 seconds so video is visible.
     """
     if not PIL_AVAILABLE or not CV2_AVAILABLE:
         print("  ⚠️ Cannot convert image to video: Pillow or OpenCV is missing.")
@@ -61,7 +62,7 @@ def convert_image_to_mp4(image_path: str, output_video_path: str, duration_sec: 
             out.write(frame)
         out.release()
 
-        print(f"  ✅ Converted image to video: {output_video_path} ({duration_sec}s)")
+        print(f"  ✅ Converted image to {duration_sec}s video: {output_video_path}")
         return True
     except Exception as e:
         print(f"  ⚠️ Video conversion failed: {e}")
@@ -70,16 +71,16 @@ def convert_image_to_mp4(image_path: str, output_video_path: str, duration_sec: 
 
 def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str = "") -> bool:
     """
-    Upload media to Instagram DM with multiple fallback methods.
-    NEVER sends file path as text - always sends actual media.
+    Upload media to Instagram DM - Simple approach:
+    1. Try direct photo upload (once)
+    2. If fails, convert to 2-second MP4 video and send
     """
     thread_id = str(thread_id)
     abs_path = os.path.abspath(file_path)
-    file_size = os.path.getsize(abs_path)
 
-    print(f"  📤 Uploading: {os.path.basename(file_path)} ({file_size} bytes)")
+    print(f"  📤 Uploading: {os.path.basename(file_path)}")
 
-    # ── METHOD 1: Send caption first ──
+    # ── 1. Send caption first (if provided) ──
     if caption:
         try:
             cl.direct_send(caption, thread_ids=[thread_id])
@@ -87,23 +88,19 @@ def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str 
         except Exception as e:
             print(f"  ⚠️ Caption send failed: {e}")
 
-    # ── METHOD 2: Try direct photo upload with retries ──
-    for attempt in range(3):
-        try:
-            time.sleep(0.5 * (attempt + 1))
-            cl.direct_send_photo(abs_path, thread_ids=[thread_id])
-            print("  ✅ Image sent as photo")
-            return True
-        except Exception as e:
-            print(f"  ⚠️ Photo send attempt {attempt+1} failed: {e}")
-            if attempt == 2:
-                break
-            time.sleep(2)
+    # ── 2. Try direct photo upload (ONCE) ──
+    try:
+        time.sleep(0.5)
+        cl.direct_send_photo(abs_path, thread_ids=[thread_id])
+        print("  ✅ Image sent as photo")
+        return True
+    except Exception as e:
+        print(f"  ⚠️ Photo send failed: {e}")
 
-    # ── METHOD 3: Convert to MP4 Video (Instagram Bypass) ──
+    # ── 3. Fallback: Convert to MP4 Video (Bypass Block) ──
     if CV2_AVAILABLE and PIL_AVAILABLE:
         try:
-            print("  🔄 Converting image to MP4 video (bypass)...")
+            print("  🔄 Converting image to MP4 video (2 seconds)...")
             temp_video_path = abs_path.rsplit('.', 1)[0] + "_bypass.mp4"
 
             if convert_image_to_mp4(abs_path, temp_video_path, duration_sec=2):
@@ -111,7 +108,7 @@ def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str 
                 cl.direct_send_video(temp_video_path, thread_ids=[thread_id])
                 print("  ✅ Image sent as video (bypass)")
 
-                # Cleanup
+                # Cleanup video file
                 if os.path.exists(temp_video_path):
                     os.remove(temp_video_path)
                 return True
@@ -123,40 +120,10 @@ def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str 
             except:
                 pass
 
-    # ── METHOD 4: Try resizing image and sending again ──
-    if PIL_AVAILABLE:
-        try:
-            print("  🔄 Resizing image and retrying...")
-            img = Image.open(abs_path).convert("RGB")
-            img.thumbnail((800, 800))
-            resized_path = abs_path.rsplit('.', 1)[0] + "_resized.jpg"
-            img.save(resized_path, "JPEG", quality=80)
-
-            time.sleep(1.0)
-            cl.direct_send_photo(resized_path, thread_ids=[thread_id])
-            print("  ✅ Image sent after resize")
-            
-            # Cleanup
-            if os.path.exists(resized_path):
-                os.remove(resized_path)
-            return True
-        except Exception as e:
-            print(f"  ⚠️ Resize fallback failed: {e}")
-
-    # ── METHOD 5: Ultimate fallback - send as video directly ──
-    try:
-        print("  🔄 Attempting to send as video directly...")
-        time.sleep(1.0)
-        cl.direct_send_video(abs_path, thread_ids=[thread_id])
-        print("  ✅ Image sent as video (direct)")
-        return True
-    except Exception as e:
-        print(f"  ⚠️ Direct video send failed: {e}")
-
-    # ── If all methods fail, send error message (NOT file path) ──
+    # ── 4. If all fails, send error message ──
     print("  ❌ All upload methods failed.")
     try:
-        cl.direct_send("❌ Failed to send image. Please try again later.", thread_ids=[thread_id])
+        cl.direct_send("❌ Failed to send image. Please try again.", thread_ids=[thread_id])
     except:
         pass
     return False
