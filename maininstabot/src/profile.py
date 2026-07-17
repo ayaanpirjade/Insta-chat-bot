@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          👤 AYAAN AI - Profile Commands
-#          Using New Image Send Method
+#          !pfp, !profile - Full Working with FFmpeg Bypass
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -74,7 +74,7 @@ def handle_pfp_command(query: str, user_id: str, username: str, thread_id: str, 
     if not file_path:
         return f"❌ Could not download profile picture for @{target}."
     
-    # ── Send using new upload method (with video bypass) ──
+    # ── Send using new upload method (with FFmpeg video bypass) ──
     caption = f"📸 Profile picture for @{target}:"
     success = upload_media_to_dm(cl, thread_id, file_path, caption)
     
@@ -89,7 +89,7 @@ def handle_pfp_command(query: str, user_id: str, username: str, thread_id: str, 
 # ── !profile ──
 
 def handle_profile_command(query: str, user_id: str, username: str, thread_id: str, cl: Client, session_id: str = None) -> Optional[str]:
-    """Handle !profile command - Sirf text info"""
+    """Handle !profile command - Sirf text info (jaise stalk)"""
     
     last = _last_used.get(user_id)
     if last is not None:
@@ -135,3 +135,70 @@ def handle_profile_command(query: str, user_id: str, username: str, thread_id: s
     except Exception as e:
         print(f"  ⚠️ Error: {e}")
         return f"❌ Could not retrieve profile data for @{target}."
+
+
+# ── !fullprofile ──
+
+def handle_fullprofile_command(query: str, user_id: str, username: str, thread_id: str, cl: Client, session_id: str = None) -> Optional[str]:
+    """Handle !fullprofile command - PFP + Text dono alag alag bhejo"""
+    
+    last = _last_used.get(user_id)
+    if last is not None:
+        elapsed = time.monotonic() - last
+        if elapsed < COOLDOWN_SECONDS:
+            return f"⏳ Slow down @{username}! Try again in {round(COOLDOWN_SECONDS - elapsed, 1)}s."
+    _last_used[user_id] = time.monotonic()
+    
+    target = extract_username_from_input(query) if query else None
+    
+    if not target:
+        return "👤 Please provide a username!\nExample: !fullprofile @username"
+    
+    print(f"\n👤 Getting full profile for: {target}")
+    
+    file_path = None
+    
+    try:
+        user_info = cl.user_info_by_username(target)
+        if not user_info:
+            return f"❌ User '@{target}' not found!"
+        
+        # ── Download PFP ──
+        file_path = download_pfp_mirror(target)
+        if not file_path:
+            file_path = download_pfp_old_method(cl, target)
+        
+        if file_path:
+            caption = f"📸 Profile picture for @{target}:"
+            upload_media_to_dm(cl, thread_id, file_path, caption)
+            time.sleep(2)
+        
+        # ── Profile text ──
+        is_private = "Yes 🔒" if user_info.is_private else "No 🔓"
+        bio = user_info.biography if user_info.biography else "No bio."
+        
+        response = (
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"       👤 PROFILE: @{user_info.username}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 Full Name : {user_info.full_name or 'No name'}\n"
+            f"🆔 User ID   : {user_info.pk}\n"
+            f"👥 Followers : {user_info.follower_count:,}\n"
+            f"🗣️ Following : {user_info.following_count:,}\n"
+            f"📸 Posts     : {user_info.media_count}\n"
+            f"🔒 Private   : {is_private}\n"
+            f"✅ Verified  : {'Yes ✅' if user_info.is_verified else 'No ❌'}\n"
+            f"🔗 Link      : {user_info.external_url or 'No link'}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📝 Biography :\n{bio}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        )
+        
+        return response
+        
+    except Exception as e:
+        print(f"  ⚠️ Error: {e}")
+        return f"❌ Could not retrieve profile data for @{target}."
+    
+    finally:
+        cleanup_file(file_path)
