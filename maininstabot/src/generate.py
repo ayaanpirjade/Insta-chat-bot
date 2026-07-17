@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          🎨 AYAAN AI - Image Generation
-#          Using New Image Send Method
+#          !generate - Full Working with FFmpeg Bypass
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -74,7 +74,7 @@ def generate_image(prompt: str) -> Optional[bytes]:
 
 
 def send_image(cl: Client, thread_id: str, image_bytes: bytes, prompt: str) -> bool:
-    """Send image using new upload method (with video bypass)"""
+    """Send image using upload_media_to_dm (with FFmpeg bypass)"""
     temp_path = None
     try:
         clean_prompt = re.sub(r'[^a-zA-Z0-9]', '_', prompt[:30])
