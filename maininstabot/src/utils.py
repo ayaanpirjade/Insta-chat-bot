@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          🔧 AYAAN AI - Utility Functions
-#          Simple Image Upload with Video Bypass (2 sec)
+#          Image to 3-Second Video Converter (Bypass Block)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -15,13 +15,13 @@ from pathlib import Path
 from typing import Optional
 from instagrapi import Client
 
-# ── Try importing image processing libraries ──
+# ── Image processing libraries ──
 try:
     from PIL import Image
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
-    print("⚠️ PIL not installed. Install: pip install Pillow")
+    print("⚠️ Pillow not installed. Run: pip install Pillow")
 
 try:
     import cv2
@@ -29,32 +29,28 @@ try:
     CV2_AVAILABLE = True
 except ImportError:
     CV2_AVAILABLE = False
-    print("⚠️ OpenCV not installed. Install: pip install opencv-python")
+    print("⚠️ OpenCV not installed. Run: pip install opencv-python")
 
 
-def convert_image_to_mp4(image_path: str, output_video_path: str, duration_sec: int = 2) -> bool:
+def convert_image_to_mp4(image_path: str, output_video_path: str, duration_sec: int = 3) -> bool:
     """
-    Converts a static image file into a H.264 encoded MP4 video.
-    Instagram blocks standard image uploads, so this bypasses that.
-    Duration set to 2 seconds so video is visible.
+    Converts static image to 3-second MP4 video.
+    Instagram blocks images but allows videos.
     """
     if not PIL_AVAILABLE or not CV2_AVAILABLE:
-        print("  ⚠️ Cannot convert image to video: Pillow or OpenCV is missing.")
+        print("  ⚠️ PIL or OpenCV missing. Install: pip install Pillow opencv-python")
         return False
 
     try:
-        # Load image and ensure standard dimensions (1080x1080)
+        # Load and resize image (1080x1080 for Instagram)
         img = Image.open(image_path).convert("RGB")
         img = img.resize((1080, 1080), Image.LANCZOS)
         frame = np.array(img)
-        # Convert RGB (PIL) to BGR (OpenCV)
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-        # Output video configuration
+        # Video writer
         fps = 24
         total_frames = fps * duration_sec
-
-        # 'mp4v' codec (widely supported)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(output_video_path, fourcc, fps, (1080, 1080))
 
@@ -71,16 +67,17 @@ def convert_image_to_mp4(image_path: str, output_video_path: str, duration_sec: 
 
 def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str = "") -> bool:
     """
-    Upload media to Instagram DM - Simple approach:
-    1. Try direct photo upload (once)
-    2. If fails, convert to 2-second MP4 video and send
+    Upload media to Instagram DM:
+    1. Try sending as photo (one attempt)
+    2. If fails, convert to 3-sec MP4 video and send
+    3. NEVER send file path as text
     """
     thread_id = str(thread_id)
     abs_path = os.path.abspath(file_path)
 
     print(f"  📤 Uploading: {os.path.basename(file_path)}")
 
-    # ── 1. Send caption first (if provided) ──
+    # ── Send caption first ──
     if caption:
         try:
             cl.direct_send(caption, thread_ids=[thread_id])
@@ -88,7 +85,7 @@ def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str 
         except Exception as e:
             print(f"  ⚠️ Caption send failed: {e}")
 
-    # ── 2. Try direct photo upload (ONCE) ──
+    # ── 1. Try direct photo upload ──
     try:
         time.sleep(0.5)
         cl.direct_send_photo(abs_path, thread_ids=[thread_id])
@@ -97,18 +94,18 @@ def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str 
     except Exception as e:
         print(f"  ⚠️ Photo send failed: {e}")
 
-    # ── 3. Fallback: Convert to MP4 Video (Bypass Block) ──
+    # ── 2. Convert to 3-second MP4 video (Bypass) ──
     if CV2_AVAILABLE and PIL_AVAILABLE:
         try:
-            print("  🔄 Converting image to MP4 video (2 seconds)...")
-            temp_video_path = abs_path.rsplit('.', 1)[0] + "_bypass.mp4"
+            print("  🔄 Converting image to 3-second video...")
+            temp_video_path = abs_path.rsplit('.', 1)[0] + "_3sec.mp4"
 
-            if convert_image_to_mp4(abs_path, temp_video_path, duration_sec=2):
+            if convert_image_to_mp4(abs_path, temp_video_path, duration_sec=3):
                 time.sleep(1.0)
                 cl.direct_send_video(temp_video_path, thread_ids=[thread_id])
-                print("  ✅ Image sent as video (bypass)")
+                print("  ✅ Image sent as 3-second video (bypass)")
 
-                # Cleanup video file
+                # Cleanup
                 if os.path.exists(temp_video_path):
                     os.remove(temp_video_path)
                 return True
@@ -120,10 +117,10 @@ def upload_media_to_dm(cl: Client, thread_id: str, file_path: str, caption: str 
             except:
                 pass
 
-    # ── 4. If all fails, send error message ──
+    # ── 3. If all fails, send error (NO FILE PATH) ──
     print("  ❌ All upload methods failed.")
     try:
-        cl.direct_send("❌ Failed to send image. Please try again.", thread_ids=[thread_id])
+        cl.direct_send("❌ Failed to send image. Try again.", thread_ids=[thread_id])
     except:
         pass
     return False
@@ -135,7 +132,7 @@ def send_image_safe(cl: Client, thread_id: str, file_path: str, caption: str = "
 
 
 def download_pfp_old_method(cl: Client, username: str, download_dir: str = "downloads") -> Optional[str]:
-    """Download profile picture using old method (photo_download_by_url)"""
+    """Download profile picture using photo_download_by_url"""
     try:
         user_info = cl.user_info_by_username(username)
         if not user_info or not user_info.profile_pic_url:
