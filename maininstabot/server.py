@@ -59,7 +59,8 @@ def handle_incoming_message(msg, thread, my_id: str):
         thread_id = thread.id
         user_id = str(msg.user_id)
 
-        if user_id == my_id:
+        # 🟢 FIX: Allow self-commands, but block non-command self-messages
+        if user_id == my_id and not text.startswith('!'):
             return
 
         username = "friend"
