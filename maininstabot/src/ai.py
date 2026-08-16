@@ -5,6 +5,7 @@
 
 import os
 import time
+import requests
 import config
 from groq import Groq
 
@@ -42,9 +43,44 @@ def _get_gemini_model():
     return _gemini_model
 
 
-# ── Per-user conversation memory ──
+# ── Per-chat conversation memory ──
+# Keying by chat + user prevents a private conversation from leaking into another chat.
 _conversations: dict[str, list] = {}
-MAX_HISTORY = 6
+MAX_HISTORY = 8
+MAX_MESSAGE_CHARS = 4000
+
+
+def ask_openai(user_message: str, history: list) -> str | None:
+    """Send a message to ChatGPT through the OpenAI-compatible chat completions API."""
+    if not config.OPENAI_API_KEY:
+        return None
+
+    messages = [
+        {"role": "system", "content": config.BOT_PERSONALITY},
+        *history,
+        {"role": "user", "content": user_message},
+    ]
+    response = requests.post(
+        f"{config.OPENAI_BASE_URL.rstrip('/')}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": config.OPENAI_MODEL,
+            "messages": messages,
+            "max_tokens": 450,
+            "temperature": 0.75,
+        },
+        timeout=45,
+    )
+    response.raise_for_status()
+    data = response.json()
+    choices = data.get("choices") or []
+    if not choices:
+        return None
+    content = choices[0].get("message", {}).get("content", "")
+    return content.strip() or None
 
 
 def ask_groq(user_message: str, history: list) -> str:
@@ -94,50 +130,49 @@ Assistant:"""
         return None
 
 
-def ask_ai(user_message: str, user_id: str = "default") -> str:
-    """Send message to AI with Groq primary + Gemini fallback"""
-    try:
-        # Get or create conversation history
-        if user_id not in _conversations:
-            _conversations[user_id] = []
+def ask_ai(user_message: str, user_id: str = "default", conversation_id: str | None = None) -> str:
+    """Send a message to ChatGPT first, then use configured AI fallbacks."""
+    user_message = (user_message or "").strip()[:MAX_MESSAGE_CHARS]
+    memory_key = conversation_id or user_id
 
-        history = _conversations[user_id]
-        
-        # ── TRY GROQ FIRST ──
+    try:
+        history = _conversations.setdefault(memory_key, [])
+
+        # ChatGPT is the primary provider when OPENAI_API_KEY is configured.
+        if config.OPENAI_API_KEY:
+            try:
+                print(f"  🤖 ChatGPT: {user_message[:30]}...")
+                reply = ask_openai(user_message, history)
+                if reply:
+                    print("  ✅ ChatGPT responded!")
+                    _save_history(memory_key, user_message, reply)
+                    return reply
+            except Exception as e:
+                print(f"  ⚠️ ChatGPT failed: {e}")
+
+        # Existing providers remain available as fallbacks.
+        if config.GROQ_API_KEY:
+            try:
+                print(f"  🤖 Groq fallback: {user_message[:30]}...")
+                reply = ask_groq(user_message, history)
+                if reply:
+                    _save_history(memory_key, user_message, reply)
+                    return reply
+            except Exception as e:
+                print(f"  ⚠️ Groq failed: {e}")
+
         try:
-            print(f"  🤖 Groq: {user_message[:30]}...")
-            reply = ask_groq(user_message, history)
-            if reply:
-                print(f"  ✅ Groq responded!")
-                _save_history(user_id, user_message, reply)
-                return reply
-        except Exception as e:
-            error_str = str(e).lower()
-            print(f"  ⚠️ Groq failed: {e}")
-            
-            # If rate limit, try Gemini
-            if "429" in error_str or "rate_limit" in error_str:
-                print(f"  🔄 Rate limit, trying Gemini...")
-            else:
-                print(f"  🔄 Groq error, trying Gemini...")
-        
-        # ── FALLBACK TO GEMINI ──
-        try:
-            print(f"  🤖 Gemini Flash: {user_message[:30]}...")
             reply = ask_gemini(user_message, history)
             if reply:
-                print(f"  ✅ Gemini responded!")
-                _save_history(user_id, user_message, reply)
+                _save_history(memory_key, user_message, reply)
                 return reply
         except Exception as e:
             print(f"  ⚠️ Gemini failed: {e}")
-        
-        # ── ULTIMATE FALLBACK ──
-        return "⚠️ All AI services are busy. Please try again in a few minutes. 🙏"
-        
+
+        return "⚠️ My AI services are busy right now. Please try again in a moment."
     except Exception as e:
         print(f"  ⚠️ AI error: {e}")
-        return "Oops, my brain glitched for a sec 🤖💥 Try again!"
+        return "Oops, my brain glitched for a second. Please try again!"
 
 
 def _save_history(user_id: str, user_message: str, reply: str):
@@ -154,6 +189,6 @@ def _save_history(user_id: str, user_message: str, reply: str):
 
 
 def clear_history(user_id: str):
-    """Clear conversation history for a user."""
+    """Clear conversation history for a user or chat context."""
     _conversations.pop(user_id, None)
-    return "🧹 History cleared! Fresh start! ✨"
+    return "🧹 Chat memory cleared. Fresh start! ✨"

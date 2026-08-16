@@ -1,0 +1,15 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python generated files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local runtime artifacts
+*.log
+maininstabot/users/*.json
+maininstabot/sessions/*.json
+maininstabot/cookies.txt

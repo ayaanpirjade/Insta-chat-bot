@@ -323,6 +323,23 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             result = tts.handle_speak_command(args, user_id, username, thread_id, cl)
             return result
 
+        # ── 💬 CHATGPT ──
+        elif cmd in ["ai", "chat", "chatgpt"]:
+            if not args:
+                return (
+                    "💬 Ask me anything!\n"
+                    f"Try: {p}ai explain black holes simply\n"
+                    f"Or just tag me in a group chat."
+                )
+            return ai.ask_ai(
+                args,
+                user_id=user_id,
+                conversation_id=f"{thread_id}:{user_id}",
+            )
+
+        elif cmd in ["resetai", "clearchat", "forget"]:
+            return ai.clear_history(f"{thread_id}:{user_id}")
+
         # ── 🎵 MUSIC ──
         elif cmd == "play":
             result = music.play_song(args, user_id, username, thread_id, cl)
@@ -454,7 +471,11 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
     if should_reply_ai:
         if not clean_text:
             return f"Hey @{username}! Need help? Type {p}help to see my commands! 😉"
-        return ai.ask_ai(clean_text, user_id=user_id)
+        return ai.ask_ai(
+            clean_text,
+            user_id=user_id,
+            conversation_id=f"{thread_id}:{user_id}",
+        )
 
     # ── 4. Ignore Non-Commands in Group Chat ──
     return None

@@ -35,11 +35,28 @@ BREAK_DURATION = 600   # 10 minutes break
 
 
 def send_message(thread_id: str, text: str):
-    """Send message through active client"""
+    """Send a reply through the active client, splitting long AI responses safely."""
     try:
         cl, _ = session_manager.get_client()
-        cl.direct_send(text, thread_ids=[thread_id])
-        time.sleep(1)  # Delay between sends
+        text = (text or "").strip()
+        if not text:
+            return
+
+        # Keep each Instagram DM comfortably below common text-size limits.
+        chunks = []
+        while len(text) > 900:
+            cut = text.rfind("\n", 0, 900)
+            if cut < 400:
+                cut = text.rfind(" ", 0, 900)
+            if cut < 1:
+                cut = 900
+            chunks.append(text[:cut].strip())
+            text = text[cut:].strip()
+        chunks.append(text)
+
+        for chunk in chunks:
+            cl.direct_send(chunk, thread_ids=[thread_id])
+            time.sleep(1)
     except Exception as e:
         print(f"  ⚠️ Send failed: {e}")
 

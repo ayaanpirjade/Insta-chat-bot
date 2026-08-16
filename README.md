@@ -92,3 +92,37 @@
 ```bash
 git clone https://github.com/yourusername/ayaan-ai-bot.git
 cd ayaan-ai-bot
+```
+
+## ChatGPT Conversation
+
+The bot now supports a direct ChatGPT conversation flow. In a direct message, ordinary text is answered by the AI automatically. In a group chat, mention the bot or use a prefixed command so the bot does not interrupt unrelated conversations.
+
+| Command | Description |
+|---------|-------------|
+| `!ai <question>` | Ask ChatGPT anything from a DM or group chat |
+| `!chat <question>` | Alias for `!ai` |
+| `!chatgpt <question>` | Alias for `!ai` |
+| `!resetai` | Clear conversation memory for the current chat and user |
+
+Set `OPENAI_API_KEY` in your `.env` file to enable ChatGPT. The default model is `gpt-4o-mini`, and it can be changed with `OPENAI_MODEL`. ChatGPT is attempted first; the existing Groq and Gemini integrations remain available as fallbacks when their keys are configured. Conversation history is scoped to the current Instagram thread and user, and long answers are split into readable messages before delivery.
+
+### Environment Setup
+
+Copy the template and fill in your credentials:
+
+```bash
+cp .env.example .env
+```
+
+Never commit `.env`, Instagram session data, cookies, or private user files. The repository now ignores newly generated local secrets and Python cache files.
+
+### Examples
+
+```text
+!ai explain recursion with a simple example
+!chat write a friendly caption for my travel photo
+!resetai
+```
+
+When a user sends `@BOT_USERNAME what should I learn today?` in a group, the bot removes its mention and sends the remaining question to ChatGPT.
