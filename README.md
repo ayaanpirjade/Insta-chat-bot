@@ -1,128 +1,114 @@
 # ✨ AYAAN AI — Instagram Chatbot
 
-> A feature-rich, multi-purpose Instagram DM/Group chatbot built with Python and instagrapi.
+> A feature-rich Instagram DM and group chatbot built with Python and `instagrapi`, with a provider-agnostic conversational AI engine.
 
-[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Instagram](https://img.shields.io/badge/Instagram-API-purple.svg)](https://instagram.com)
+## Overview
 
----
+AYAAN AI preserves the existing games, utilities, media commands, reminders, profile tools, and voice features while adding a natural AI assistant. The AI engine supports OpenAI, Groq, and Gemini through a shared provider interface. The selected provider can be changed with configuration; the router and commands do not need to change.
 
-## 🚀 Features
+## Installation
 
-| Command | Description |
-|---------|-------------|
-| `!play <song>` | Send music sticker |
-| `!vn <song>` | Voice note from YouTube |
-| `!tts <text>` | Text to speech voice note |
-| `!speak <question>` | AI reply + voice note |
-| `!reel <link>` | Download & send reel video |
-| `!audio <link>` | Extract audio from reel |
-| `!sticker <category>` | Send native Instagram sticker |
-| `!gif <query>` | Send native GIF |
-| `!help` | Show full menu |
-| `!games` | Show games menu |
-| `!ping` | Check bot status |
-| `!info` | Bot info |
-| `!joke` | Random joke |
-| `!fact` | Random fact |
-| `!quote` | Random quote |
-| `!roast @user` | Roast someone |
-| `!8ball <question>` | Magic 8-ball |
-| `!roll` | Roll dice |
-| `!flip` | Flip coin |
-| `!meme` | Text meme |
-| `!calc <expr>` | Calculator |
-| `!time` | Current time |
-| `!weather <city>` | Weather forecast |
-| `!stalk @user` | Instagram profile info |
-| `!horoscope <sign>` | Daily horoscope |
-| `!choose <options>` | Choose randomly |
-| `!trivia` | Trivia game |
-| `!guess` | Guess number game |
-| `!scramble` | Word scramble |
-| `!wordseek` | Wordle game |
-| `!rps` | Rock Paper Scissors |
-| `!wyr` | Would You Rather |
-| `!emoji` | Emoji game |
-| `!tod` | Truth or Dare |
-| `!score` | Your stats |
-| `!top` | Leaderboard |
-| `!daily` | Daily bonus |
-| `!remind` | Set reminder |
-
----
-
-## 🎭 Voice Commands
-
-| Command | Description |
-|---------|-------------|
-| `!avoice <num> <text>` | Anime character voice |
-| `!amultivoice <nums> <text>` | Multiple anime characters |
-| `!avoices` | List all voices |
-
-### Available Anime Voices
-
-| # | Name | Style |
-|---|------|-------|
-| 1 | Urokodaki | Deep masculine |
-| 2 | Kanae | Soft feminine |
-| 3 | Uppermoon | Dark creepy |
-| 4 | Tanjiro | Heroic |
-| 5 | Nezuko | Cute |
-| 6 | Zenitsu | Scared whiny |
-| 7 | Inosuke | Wild aggressive |
-| 8 | Muzan | Evil calm |
-| 9 | Shinobu | Gentle deadly |
-| 10 | Giyu | Silent serious |
-
----
-
-## 📦 Installation
-
-### Prerequisites
-
-- Python 3.11+
-- Instagram Session ID
-- Groq API Key (optional)
-- ElevenLabs API Key (optional)
-
-### 1. Clone Repository
+The project requires Python 3.11 or newer and an Instagram session ID. Install the declared dependencies from the repository root:
 
 ```bash
-git clone https://github.com/yourusername/ayaan-ai-bot.git
-cd ayaan-ai-bot
-```
-
-## ChatGPT Conversation
-
-The bot now supports a direct ChatGPT conversation flow. In a direct message, ordinary text is answered by the AI automatically. In a group chat, mention the bot or use a prefixed command so the bot does not interrupt unrelated conversations.
-
-| Command | Description |
-|---------|-------------|
-| `!ai <question>` | Ask ChatGPT anything from a DM or group chat |
-| `!chat <question>` | Alias for `!ai` |
-| `!chatgpt <question>` | Alias for `!ai` |
-| `!resetai` | Clear conversation memory for the current chat and user |
-
-Set `OPENAI_API_KEY` in your `.env` file to enable ChatGPT. The default model is `gpt-4o-mini`, and it can be changed with `OPENAI_MODEL`. ChatGPT is attempted first; the existing Groq and Gemini integrations remain available as fallbacks when their keys are configured. Conversation history is scoped to the current Instagram thread and user, and long answers are split into readable messages before delivery.
-
-### Environment Setup
-
-Copy the template and fill in your credentials:
-
-```bash
+git clone https://github.com/ayaanpirjade/Insta-chat-bot.git
+cd Insta-chat-bot
+python3 -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Never commit `.env`, Instagram session data, cookies, or private user files. The repository now ignores newly generated local secrets and Python cache files.
+Fill in `.env` before starting the bot:
 
-### Examples
-
-```text
-!ai explain recursion with a simple example
-!chat write a friendly caption for my travel photo
-!resetai
+```bash
+python3 maininstabot/server.py
 ```
 
-When a user sends `@BOT_USERNAME what should I learn today?` in a group, the bot removes its mention and sends the remaining question to ChatGPT.
+The bot requires a valid Instagram session. Live Instagram behavior cannot be tested safely without the account owner’s private session and account access.
+
+## AI Configuration
+
+`AI_PROVIDER` selects the first provider attempted. `AI_FALLBACK_PROVIDERS` controls the optional fallback order. The providers use the same conversation engine and never expose credentials in user-facing replies.
+
+| Variable | Purpose | Example |
+|---|---|---|
+| `AI_PROVIDER` | Primary provider: `openai`, `groq`, or `gemini` | `openai` |
+| `AI_FALLBACK_PROVIDERS` | Comma-separated fallback providers | `groq,gemini` |
+| `OPENAI_API_KEY` | OpenAI API credential | `...` |
+| `OPENAI_MODEL` | OpenAI model name | `gpt-4o-mini` |
+| `OPENAI_BASE_URL` | Optional OpenAI-compatible endpoint | `https://api.openai.com/v1` |
+| `GROQ_API_KEY` | Optional Groq credential | `...` |
+| `AI_MODEL` | Groq model name | `llama-3.1-8b-instant` |
+| `GEMINI_API_KEY` | Optional Gemini credential | `...` |
+
+## Personality, Memory, and Protection
+
+Personality is configured rather than scattered through handlers. Supported values are `friendly`, `professional`, `funny`, `concise`, and `technical`. `AI_SYSTEM_PROMPT` can replace the generated system prompt, and `BOT_LANGUAGE` sets the default language instruction.
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `BOT_NAME` | `AYAAN AI` | Display and personality name |
+| `BOT_PERSONALITY` | `friendly` | Personality style |
+| `BOT_LANGUAGE` | `en` | Default language code |
+| `AI_SYSTEM_PROMPT` | Generated | Optional full system-prompt override |
+| `MAX_HISTORY_MESSAGES` | `20` | Maximum stored messages per conversation |
+| `AI_COOLDOWN_SECONDS` | `3` | Per-conversation AI cooldown |
+| `MAX_AI_REQUESTS_PER_MINUTE` | `10` | Per-conversation rolling request limit |
+| `GROUP_AI_MODE` | `false` | Optional automatic group replies; keep disabled by default |
+
+Conversation memory is isolated by `thread_id:user_id`. It is bounded and can be cleared with `!resetai`, `!forget`, or `!clearchat`.
+
+## AI Commands
+
+All AI utilities use the same engine with task-specific prompts.
+
+| Command | Description |
+|---|---|
+| `!ai <question>` | Ask the conversational assistant |
+| `!ask <question>` | Alias for `!ai` |
+| `!chat <message>` | Alias for `!ai` |
+| `!chatgpt <question>` | Alias for `!ai` |
+| `!summarize <text>` | Summarize text |
+| `!translate <text>` | Translate text into the requested or configured language |
+| `!rewrite <text>` | Rewrite text clearly while preserving meaning |
+| `!caption <topic>` | Generate three Instagram caption options |
+| `!explain <topic>` | Explain a topic simply with an example |
+| `!resetai` | Clear the current conversation memory |
+| `!forget` | Alias for `!resetai` |
+| `!clearchat` | Alias for `!resetai` |
+| `!speak <question>` | Shared AI reply converted into a voice note |
+
+## DM and Group Behavior
+
+In direct messages, ordinary text such as `hello`, `what is Python?`, or `write an Instagram caption` is answered naturally. In group chats, the bot does not answer every message. It responds when mentioned, when an explicit AI command is used, or when a message is a reply to a previous bot message. `GROUP_AI_MODE=true` can enable automatic group replies, but this is opt-in.
+
+Long replies are split at paragraph, sentence, or whitespace boundaries. The splitter is tested with short text, multiline content, Unicode and emoji, code blocks, and extremely long messages.
+
+## Existing Features
+
+The project retains the existing music, voice-note, text-to-speech, reel, audio, sticker, GIF, image-generation, repost, profile, group administration, games, utilities, leaderboard, daily reward, and reminder features. Use `!help`, `!games`, `!musiccmd`, `!reelcmd`, or `!utilscmd` inside Instagram to see the current menus.
+
+Common commands include `!play`, `!vn`, `!tts`, `!reel`, `!audio`, `!generate`, `!profile`, `!joke`, `!fact`, `!quote`, `!roast`, `!calc`, `!weather`, `!trivia`, `!guess`, `!rps`, `!score`, `!top`, `!daily`, and `!remind`.
+
+## Security
+
+Never commit `.env`, API keys, Instagram session IDs, cookies, authentication tokens, session settings, generated user state, or Python cache files. These paths are ignored by `.gitignore`, and previously tracked runtime artifacts were removed from the repository index while remaining available locally for an existing installation. Rotate any credential that may have appeared in earlier Git history.
+
+Runtime errors are logged with credential-like values redacted, while users receive friendly provider-failure messages. The bot does not add automation intended to evade Instagram detection or rate limits.
+
+## Testing and Validation
+
+Run the focused regression suite and syntax validation from the repository root:
+
+```bash
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q maininstabot
+git diff --check
+```
+
+The tests cover provider selection, fallback, bounded memory, memory isolation, cooldowns, rolling request limits, safe provider failures, command parsing, long-message splitting, and DM/group AI trigger behavior. Import validation also covers `config`, `ai`, `command_parser`, `text_utils`, and `router` with the declared dependencies installed.
+
+## Troubleshooting
+
+If the bot reports that `SESSION_ID` is missing, verify `.env` is in the repository root and that the session value is current. If AI replies fail, verify `AI_PROVIDER`, the selected provider key, model name, and network access; configure a fallback provider if desired. If a command is not recognized, use `!help` and confirm the command has not been disabled by the command-toggle system.
+
+If Instagram login or media operations fail, inspect the sanitized console error, confirm the account session is valid, and avoid committing any generated session or cookie files.

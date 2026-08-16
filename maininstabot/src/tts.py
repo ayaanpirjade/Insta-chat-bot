@@ -150,38 +150,18 @@ def convert_to_voice_note(input_path: str) -> Optional[str]:
 #  🤖 AI REPLY FOR !speak
 # ═══════════════════════════════════════════════════════════════
 
-def get_ai_reply(query: str, max_tokens: int = 300) -> Optional[str]:
-    """Get AI reply using Groq"""
+def get_ai_reply(query: str, max_tokens: int = 300, user_id: str = "default", conversation_id: str | None = None) -> Optional[str]:
+    """Get a concise reply from the shared provider-agnostic AI engine."""
     try:
-        if not GROQ_AVAILABLE:
-            return None
-        
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            print("  ⚠️ GROQ_API_KEY not set")
-            return None
-        
-        client = Groq(api_key=api_key)
-        
-        print(f"  🤖 Getting AI reply...")
-        
-        # ✅ Short replies for TTS (max 300 chars)
-        completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": "You are AYAAN AI. Give concise, informative replies under 300 characters."},
-                {"role": "user", "content": query}
-            ],
-            temperature=0.7,
-            max_tokens=200,  # ⬇️ Small for TTS
+        from . import ai
+        reply = ai.ask_ai(
+            query,
+            user_id=user_id,
+            conversation_id=conversation_id or f"voice:{user_id}",
         )
-        
-        reply = completion.choices[0].message.content.strip()
-        print(f"  ✅ AI reply: {reply[:50]}... ({len(reply)} chars)")
-        return reply[:500]  # Limit to 500 chars for TTS
-        
-    except Exception as e:
-        print(f"  ⚠️ AI failed: {e}")
+        return reply[:max_tokens] if reply else None
+    except Exception as error:
+        print(f"  ⚠️ AI failed: {type(error).__name__}")
         return None
 
 
@@ -210,9 +190,6 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
         if elapsed < COOLDOWN_SECONDS:
             return f"⏳ Slow down @{username}! Try again in {round(COOLDOWN_SECONDS - elapsed, 1)}s."
     _last_used[user_id] = time.monotonic()
-    
-    human_like_delay(1.0, 2.0)
-    ensure_request_gap(1.0)
     
     print(f"\n🔊 Processing TTS: {text[:50]}...")
     
@@ -281,19 +258,13 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
             return f"⏳ Slow down @{username}! Try again in {round(COOLDOWN_SECONDS - elapsed, 1)}s."
     _last_used[user_id] = time.monotonic()
     
-    human_like_delay(1.0, 2.0)
-    ensure_request_gap(1.0)
-    
     print(f"\n🔊 Processing speak: {query[:50]}...")
     
     if not GTTS_AVAILABLE:
         return "⚠️ gTTS not installed. Install with: pip install gTTS"
     
-    if not GROQ_AVAILABLE:
-        return "⚠️ Groq not installed."
-    
-    # Get AI reply
-    reply = get_ai_reply(query)
+    # Get AI reply through the shared engine.
+    reply = get_ai_reply(query, user_id=user_id, conversation_id=f"{thread_id}:{user_id}")
     
     if not reply:
         return "❌ Failed to get AI reply."

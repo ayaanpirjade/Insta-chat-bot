@@ -11,5 +11,6 @@ __pycache__/
 # Local runtime artifacts
 *.log
 maininstabot/users/*.json
+maininstabot/session_settings.json
 maininstabot/sessions/*.json
 maininstabot/cookies.txt

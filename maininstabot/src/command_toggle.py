@@ -10,7 +10,7 @@ import config
 
 # ── Constants ──
 TOGGLE_FILE = "command_toggle.json"
-OWNER_ID = "43241663914"  # Hardcoded owner
+OWNER_ID = os.getenv("OWNER_ID", "")
 
 # ── Default Settings ──
 DEFAULT_SETTINGS = {
@@ -51,6 +51,18 @@ DEFAULT_SETTINGS = {
         "speak",
         "ask",
         "voiceai",
+        "ai",
+        "chat",
+        "chatgpt",
+        "summarize",
+        "summary",
+        "translate",
+        "rewrite",
+        "caption",
+        "explain",
+        "resetai",
+        "clearchat",
+        "forget",
         "reel",
         "dreel",
         "dlreel",

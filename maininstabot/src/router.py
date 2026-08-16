@@ -25,19 +25,21 @@ from . import generate as generate
 from . import evil as evil
 from . import command_toggle as command_toggle
 from . import group_admin as group_admin
+from .command_parser import parse_command
 
 import config
 
 
-def process_message(text: str, thread_id: str, user_id: str, username: str, is_group: bool, cl, msg=None) -> str | None:
+def process_message(text: str, thread_id: str, user_id: str, username: str, is_group: bool, cl, msg=None, my_id: str | None = None) -> str | None:
     """
     Main message router. Receives incoming message, parses commands,
     manages active games, and falls back to Groq AI if mentioned.
     Returns the string reply to send, or None if no action.
     """
-    text = text.strip()
+    text = (text or "").strip()
     text_lower = text.lower()
     p = config.PREFIX
+    cmd, args = parse_command(text, p)
 
     # ── 1. Check for Active Game Session ──
     active_session = game.get_active_game(thread_id)
@@ -69,13 +71,8 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
 
     # ── 2. Handle Commands (Start with Prefix) ──
     if text.startswith(p):
-        cmd_part = text[len(p) :].strip()
-        cmd_lower = cmd_part.lower()
-
-        # Split command and arguments
-        parts = cmd_part.split(maxsplit=1)
-        cmd = parts[0].lower()
-        args = parts[1].strip() if len(parts) > 1 else ""
+        if cmd is None:
+            return None
 
         # ── 📋 MENU COMMANDS ──
         if cmd == "help":
@@ -319,23 +316,29 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             return result
 
         # ── 🤖 AI + VOICE ──
-        elif cmd in ["speak", "ask", "voiceai"]:
-            result = tts.handle_speak_command(args, user_id, username, thread_id, cl)
-            return result
+        elif cmd in ["speak", "voiceai"]:
+            return tts.handle_speak_command(args, user_id, username, thread_id, cl)
 
-        # ── 💬 CHATGPT ──
-        elif cmd in ["ai", "chat", "chatgpt"]:
+        # ── 💬 SHARED AI ENGINE ──
+        elif cmd in ["ai", "ask", "chat", "chatgpt"]:
             if not args:
-                return (
-                    "💬 Ask me anything!\n"
-                    f"Try: {p}ai explain black holes simply\n"
-                    f"Or just tag me in a group chat."
-                )
-            return ai.ask_ai(
-                args,
-                user_id=user_id,
-                conversation_id=f"{thread_id}:{user_id}",
-            )
+                return f"💬 Ask me anything! Try: {p}ai explain recursion simply"
+            return ai.ask_ai(args, user_id=user_id, conversation_id=f"{thread_id}:{user_id}")
+
+        elif cmd in ["summarize", "summary"]:
+            return ai.ask_task("summarize", args, user_id, f"{thread_id}:{user_id}") if args else f"Usage: {p}summarize <text>"
+
+        elif cmd == "translate":
+            return ai.ask_task("translate into the requested target language; if none is given, use the configured bot language", args, user_id, f"{thread_id}:{user_id}") if args else f"Usage: {p}translate <text>"
+
+        elif cmd == "rewrite":
+            return ai.ask_task("rewrite the text to be clearer and more natural while preserving meaning", args, user_id, f"{thread_id}:{user_id}") if args else f"Usage: {p}rewrite <text>"
+
+        elif cmd == "caption":
+            return ai.ask_task("write three engaging Instagram caption options for the topic", args, user_id, f"{thread_id}:{user_id}") if args else f"Usage: {p}caption <topic>"
+
+        elif cmd == "explain":
+            return ai.ask_task("explain the topic simply, with a short example when useful", args, user_id, f"{thread_id}:{user_id}") if args else f"Usage: {p}explain <topic>"
 
         elif cmd in ["resetai", "clearchat", "forget"]:
             return ai.clear_history(f"{thread_id}:{user_id}")
@@ -451,31 +454,26 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
         # If prefix used but command unknown
         return f"⚠️ Unknown command. Type {p}help to see the full menu!"
 
-    # ── 3. Handle Mentions & AI Chat Fallback ──
+    # ── 3. Handle natural AI triggers ──
     bot_tag = f"@{config.USERNAME}".lower()
     bot_name = config.BOT_NAME.lower()
-
-    # Determine if we should reply using AI
-    should_reply_ai = False
-
-    # A: If bot is tagged
-    if bot_tag in text_lower or bot_name in text_lower:
-        should_reply_ai = True
-        # Clean the tag out of the message
+    clean_text = text
+    mentioned = bot_tag in text_lower or bot_name in text_lower
+    if mentioned:
         clean_text = re.sub(rf"({re.escape(bot_tag)}|{re.escape(bot_name)})", "", text, flags=re.IGNORECASE).strip()
-    # B: If in 1-on-1 DM (any text that isn't a command is an AI chat)
-    elif not is_group:
-        should_reply_ai = True
-        clean_text = text
 
+    reply_to_bot = False
+    replied = getattr(msg, "replied_to_message", None) if msg is not None else None
+    if replied is not None and my_id:
+        replied_user_id = getattr(replied, "user_id", None)
+        if replied_user_id is None and isinstance(replied, dict):
+            replied_user_id = replied.get("user_id") or replied.get("sender_id")
+        reply_to_bot = str(replied_user_id) == str(my_id)
+
+    should_reply_ai = mentioned or reply_to_bot or not is_group or config.GROUP_AI_MODE
     if should_reply_ai:
         if not clean_text:
-            return f"Hey @{username}! Need help? Type {p}help to see my commands! 😉"
-        return ai.ask_ai(
-            clean_text,
-            user_id=user_id,
-            conversation_id=f"{thread_id}:{user_id}",
-        )
+            return f"Hey @{username}! Need help? Type {p}help or ask me anything."
+        return ai.ask_ai(clean_text, user_id=user_id, conversation_id=f"{thread_id}:{user_id}")
 
-    # ── 4. Ignore Non-Commands in Group Chat ──
     return None

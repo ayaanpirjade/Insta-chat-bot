@@ -13,6 +13,7 @@ import src.router as router
 import src.scheduler as scheduler
 import src.menu as menu
 from src.session_manager import RotatingSessionManager
+from src.text_utils import split_message
 
 # Reconfigure console streams to UTF-8
 if hasattr(sys.stdout, "reconfigure"):
@@ -34,31 +35,27 @@ BREAK_INTERVAL = 3600  # 1 hour polling
 BREAK_DURATION = 600   # 10 minutes break
 
 
+def _safe_error(error: Exception) -> str:
+    message = str(error).replace("\n", " ")
+    for secret in (
+        config.SESSION_ID,
+        getattr(config, "OPENAI_API_KEY", ""),
+        getattr(config, "GROQ_API_KEY", ""),
+        getattr(config, "GEMINI_API_KEY", ""),
+    ):
+        if secret:
+            message = message.replace(secret, "[REDACTED]")
+    return message[:300]
+
+
 def send_message(thread_id: str, text: str):
-    """Send a reply through the active client, splitting long AI responses safely."""
+    """Send a reply through the active client in safe, readable chunks."""
     try:
         cl, _ = session_manager.get_client()
-        text = (text or "").strip()
-        if not text:
-            return
-
-        # Keep each Instagram DM comfortably below common text-size limits.
-        chunks = []
-        while len(text) > 900:
-            cut = text.rfind("\n", 0, 900)
-            if cut < 400:
-                cut = text.rfind(" ", 0, 900)
-            if cut < 1:
-                cut = 900
-            chunks.append(text[:cut].strip())
-            text = text[cut:].strip()
-        chunks.append(text)
-
-        for chunk in chunks:
+        for chunk in split_message(text, limit=900):
             cl.direct_send(chunk, thread_ids=[thread_id])
-            time.sleep(1)
-    except Exception as e:
-        print(f"  ⚠️ Send failed: {e}")
+    except Exception as error:
+        print(f"  ⚠️ Send failed: {_safe_error(error)}")
 
 
 def handle_incoming_message(msg, thread, my_id: str):
@@ -103,9 +100,9 @@ def handle_incoming_message(msg, thread, my_id: str):
             thread_id=thread_id,
             user_id=user_id,
             username=username,
-            is_group=is_group,
             cl=cl,
-            msg=msg
+            msg=msg,
+            my_id=my_id,
         )
 
         if reply:
@@ -113,7 +110,7 @@ def handle_incoming_message(msg, thread, my_id: str):
             print(f"  → Replied")
 
     except Exception as e:
-        print(f"  ⚠️ Error: {e}")
+        print(f"  ⚠️ Error: {_safe_error(e)}")
 
 
 def main():
@@ -235,7 +232,6 @@ def main():
                 # Process messages (with delay)
                 for msg in reversed(new_messages):
                     executor.submit(handle_incoming_message, msg, thread, my_id)
-                    time.sleep(0.5)  # Delay between message processing
 
                 # Update last seen
                 if thread.messages:

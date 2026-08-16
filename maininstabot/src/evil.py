@@ -19,7 +19,11 @@ except ImportError:
     GEMINI_AVAILABLE = False
 
 # ── Constants ──
-OWNER_IDS = ["43719797953", "1537990109"]  # Multiple owners
+OWNER_IDS = [
+    value.strip()
+    for value in os.getenv("OWNER_IDS", "43719797953,1537990109").split(",")
+    if value.strip()
+]
 ADMINS_FILE = "admins.json"
 COOLDOWN_SECONDS = 15
 MAX_HISTORY = 12
@@ -391,8 +395,8 @@ if __name__ == "__main__":
     """)
 
     print(f"📋 Config Check:")
-    print(f"  Groq API: {config.GROQ_API_KEY[:10] if hasattr(config, 'GROQ_API_KEY') else 'NOT SET'}...")
-    print(f"  Gemini API: {config.GEMINI_API_KEY[:10] if hasattr(config, 'GEMINI_API_KEY') else 'NOT SET'}...")
+    print(f"  Groq API configured: {bool(getattr(config, 'GROQ_API_KEY', ''))}")
+    print(f"  Gemini API configured: {bool(getattr(config, 'GEMINI_API_KEY', ''))}")
     print(f"  Gemini Available: {GEMINI_AVAILABLE}")
     print(f"  Owners: {OWNER_IDS}")
 
