@@ -113,7 +113,7 @@ def download_and_convert(query: str) -> tuple[Optional[str], Optional[str]]:
         # Step 1: Download audio with Deno support
         print(f"  🎵 Searching YouTube for: {query}")
         
-        ytdlp_cmd = [
+        base_ytdlp_cmd = [
             yt_dlp_path,
             f"ytsearch1:{query}",
             "-x",
@@ -125,21 +125,40 @@ def download_and_convert(query: str) -> tuple[Optional[str], Optional[str]]:
             "--print", "id",
             "--no-simulate",
             "--ffmpeg-location", os.path.dirname(ffmpeg_path),
-            "--js-runtimes", f"deno:{deno_path}",  # ✅ Deno for JavaScript
-            "--remote-components", "ejs:npm"  # ✅ Enable EJS
+            "--js-runtimes", f"deno:{deno_path}",
+            "--remote-components", "ejs:npm",
+            "--retries", "2",
+            "--fragment-retries", "2",
+            "--retry-sleep", "exp=1:10",
+            "--socket-timeout", "20",
+            "--force-ipv4",
         ]
-        
-        result = subprocess.run(
-            ytdlp_cmd,
-            capture_output=True,
-            text=True,
-            timeout=180
-        )
-        
-        if result.returncode != 0:
-            print(f"  ⚠️ yt-dlp error: {result.stderr}")
+
+        # YouTube may reject one player profile with HTTP 403. Try a small,
+        # bounded set of official yt-dlp client profiles before giving up.
+        profiles = [
+            "youtube:player_client=android,web",
+            "youtube:player_client=web_safari",
+        ]
+        result = None
+        for profile in profiles:
+            ytdlp_cmd = [*base_ytdlp_cmd, "--extractor-args", profile]
+            result = subprocess.run(
+                ytdlp_cmd,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            if result.returncode == 0:
+                break
+            if "403" not in (result.stderr or ""):
+                break
+
+        if result is None or result.returncode != 0:
+            error = (result.stderr or "unknown yt-dlp error").strip() if result else "unknown yt-dlp error"
+            print(f"  ⚠️ yt-dlp error after retries: {error}")
             return None, None
-        
+
         lines = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
         if len(lines) < 3:
             return None, None

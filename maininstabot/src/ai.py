@@ -119,8 +119,13 @@ def _groq(user_message: str, history: list[dict[str, str]], system_prompt: str) 
 
     messages = [{"role": "system", "content": system_prompt}, *history, {"role": "user", "content": user_message}]
     models = [config.AI_MODEL]
-    if config.GROQ_FALLBACK_MODEL and config.GROQ_FALLBACK_MODEL not in models:
-        models.append(config.GROQ_FALLBACK_MODEL)
+    configured_models = [
+        config.GROQ_FALLBACK_MODEL,
+        *getattr(config, "GROQ_FALLBACK_MODELS", []),
+    ]
+    for model in configured_models:
+        if model and model not in models:
+            models.append(model)
 
     response = None
     for index, model in enumerate(models):

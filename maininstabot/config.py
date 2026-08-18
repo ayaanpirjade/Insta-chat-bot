@@ -24,7 +24,15 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "openai/gpt-oss-20b")
-GROQ_FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "llama-3.3-70b-versatile")
+GROQ_FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-20b")
+GROQ_FALLBACK_MODELS = [
+    item.strip()
+    for item in os.getenv(
+        "GROQ_FALLBACK_MODELS",
+        "openai/gpt-oss-20b,openai/gpt-oss-120b,groq/compound-mini",
+    ).split(",")
+    if item.strip()
+]
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # ── Bot Identity and Personality ──────
