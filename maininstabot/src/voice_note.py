@@ -24,38 +24,38 @@ MAX_DURATION_SECONDS = 180
 
 
 def find_executable(name: str) -> Optional[str]:
-    """Find executable in PATH or common locations"""
+    """Find an executable even when the bot was launched without shell profiles."""
     path = shutil.which(name)
     if path:
         return path
-    
-    if name == "ffmpeg":
-        common_paths = [
+
+    home = os.path.expanduser("~")
+    common_paths = {
+        "deno": [
+            os.path.join(home, ".deno", "bin", "deno"),
+            "/root/.deno/bin/deno",
+            "/usr/local/bin/deno",
+            "/usr/bin/deno",
+            r"C:\Users\ayaan\.deno\bin\deno.exe",
+            r"C:\Program Files\deno\deno.exe",
+        ],
+        "yt-dlp": [
+            os.path.join(home, ".local", "bin", "yt-dlp"),
+            os.path.join(home, ".local", "bin", "yt-dlp.exe"),
+            r"C:\Users\ayaan\AppData\Local\Programs\Python\Python311\Scripts\yt-dlp.exe",
+        ],
+        "ffmpeg": [
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
             r"C:\ffmpeg\bin\ffmpeg.exe",
             r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
             r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
-        ]
-        for p in common_paths:
-            if os.path.exists(p):
-                return p
-    
-    if name == "yt-dlp":
-        common_paths = [
-            r"C:\Users\ayaan\AppData\Local\Programs\Python\Python311\Scripts\yt-dlp.exe",
-        ]
-        for p in common_paths:
-            if os.path.exists(p):
-                return p
-    
-    if name == "deno":
-        common_paths = [
-            r"C:\Users\ayaan\.deno\bin\deno.exe",
-            r"C:\Program Files\deno\deno.exe",
-        ]
-        for p in common_paths:
-            if os.path.exists(p):
-                return p
-    
+        ],
+    }
+    for candidate in common_paths.get(name, []):
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
     return None
 
 
