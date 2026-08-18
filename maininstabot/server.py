@@ -48,14 +48,23 @@ def _safe_error(error: Exception) -> str:
     return message[:300]
 
 
-def send_message(thread_id: str, text: str):
-    """Send a reply through the active client in safe, readable chunks."""
+def send_message(thread_id: str, text: str) -> bool:
+    """Send a reply in safe chunks and report whether every chunk was accepted."""
+    chunks = split_message(text, limit=900)
+    if not chunks:
+        return False
     try:
         cl, _ = session_manager.get_client()
-        for chunk in split_message(text, limit=900):
-            cl.direct_send(chunk, thread_ids=[thread_id])
+        for chunk in chunks:
+            cl.direct_send(chunk, thread_ids=[str(thread_id)])
+        return True
     except Exception as error:
-        print(f"  ⚠️ Send failed: {_safe_error(error)}")
+        safe_error = _safe_error(error)
+        error_text = str(error).lower()
+        if "403" in error_text or "1404006" in error_text or "forbidden" in error_text:
+            print("  ⚠️ Instagram rejected outbound delivery (403/1404006); check account messaging restrictions or rate limits.")
+        print(f"  ⚠️ Send failed: {safe_error}")
+        return False
 
 
 def handle_incoming_message(msg, thread, my_id: str):
@@ -107,8 +116,11 @@ def handle_incoming_message(msg, thread, my_id: str):
         )
 
         if reply:
-            send_message(thread_id, reply)
-            print(f"  → Replied")
+            delivered = send_message(thread_id, reply)
+            if delivered:
+                print("  → Replied")
+            else:
+                print("  → Reply was not delivered")
 
     except Exception as e:
         print(f"  ⚠️ Error: {_safe_error(e)}")
