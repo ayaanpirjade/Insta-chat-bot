@@ -1,0 +1,24 @@
+import ast
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class ServerRouterContractTests(unittest.TestCase):
+    def test_server_passes_group_flag_to_router(self):
+        source = (ROOT / "maininstabot" / "server.py").read_text()
+        tree = ast.parse(source)
+        calls = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if node.func.attr == "process_message":
+                    calls.append(node)
+        self.assertEqual(len(calls), 1)
+        keyword_names = {keyword.arg for keyword in calls[0].keywords}
+        self.assertIn("is_group", keyword_names)
+        self.assertIn("my_id", keyword_names)
+
+
+if __name__ == "__main__":
+    unittest.main()

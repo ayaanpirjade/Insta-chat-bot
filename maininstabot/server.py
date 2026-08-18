@@ -100,6 +100,7 @@ def handle_incoming_message(msg, thread, my_id: str):
             thread_id=thread_id,
             user_id=user_id,
             username=username,
+            is_group=is_group,
             cl=cl,
             msg=msg,
             my_id=my_id,
