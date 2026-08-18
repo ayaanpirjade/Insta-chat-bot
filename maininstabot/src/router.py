@@ -462,15 +462,10 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
     if mentioned:
         clean_text = re.sub(rf"({re.escape(bot_tag)}|{re.escape(bot_name)})", "", text, flags=re.IGNORECASE).strip()
 
-    reply_to_bot = False
-    replied = getattr(msg, "replied_to_message", None) if msg is not None else None
-    if replied is not None and my_id:
-        replied_user_id = getattr(replied, "user_id", None)
-        if replied_user_id is None and isinstance(replied, dict):
-            replied_user_id = replied.get("user_id") or replied.get("sender_id")
-        reply_to_bot = str(replied_user_id) == str(my_id)
-
-    should_reply_ai = mentioned or reply_to_bot or not is_group or config.GROUP_AI_MODE
+    # In DMs, ordinary messages are AI chat. In groups, AI replies require
+    # an explicit username/name mention; GROUP_AI_MODE is intentionally not
+    # used as an automatic group trigger.
+    should_reply_ai = mentioned or not is_group
     if should_reply_ai:
         if not clean_text:
             return f"Hey @{username}! Need help? Type {p}help or ask me anything."

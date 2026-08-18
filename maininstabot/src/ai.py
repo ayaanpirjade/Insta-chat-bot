@@ -116,13 +116,30 @@ def _groq(user_message: str, history: list[dict[str, str]], system_prompt: str) 
     client = _get_groq_client()
     if client is None:
         return None
-    response = client.chat.completions.create(
-        model=config.AI_MODEL,
-        messages=[{"role": "system", "content": system_prompt}, *history, {"role": "user", "content": user_message}],
-        max_tokens=700,
-        temperature=0.75,
-    )
-    content = response.choices[0].message.content if response.choices else ""
+
+    messages = [{"role": "system", "content": system_prompt}, *history, {"role": "user", "content": user_message}]
+    models = [config.AI_MODEL]
+    if config.GROQ_FALLBACK_MODEL and config.GROQ_FALLBACK_MODEL not in models:
+        models.append(config.GROQ_FALLBACK_MODEL)
+
+    response = None
+    for index, model in enumerate(models):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=700,
+                temperature=0.75,
+            )
+            break
+        except Exception as exc:
+            error_text = str(exc).lower()
+            model_unavailable = "model_not_found" in error_text or "does not exist" in error_text
+            if not model_unavailable or index == len(models) - 1:
+                raise
+            logger.warning("Configured Groq model unavailable; trying fallback model")
+
+    content = response.choices[0].message.content if response and response.choices else ""
     return (content or "").strip() or None
 
 

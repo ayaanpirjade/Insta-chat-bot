@@ -125,17 +125,54 @@ class SpecificationTests(unittest.TestCase):
             config.USERNAME = "ayaanbot_"
             config.BOT_NAME = "AYAAN AI"
             config.GROUP_AI_MODE = False
-            self.assertIsNone(router.process_message("hello everyone", "group-a", "user-a", "alice", True, None))
+            self.assertIsNone(router.process_message("hello everyone", "group-a", "user-a", "alice", True, None, my_id="bot"))
             self.assertEqual(router.process_message("@ayaanbot_ hello", "group-a", "user-a", "alice", True, None, my_id="bot"), "reply:hello")
+            self.assertEqual(router.process_message("AYAAN AI help me", "group-a", "user-a", "alice", True, None, my_id="bot"), "reply:help me")
             self.assertEqual(router.process_message("!ai tell me a joke", "group-a", "user-a", "alice", True, None, my_id="bot"), "reply:tell me a joke")
+            self.assertEqual(router.process_message("hello from a DM", "dm-a", "user-a", "alice", False, None, my_id="bot"), "reply:hello from a DM")
 
             class Reply:
                 user_id = "bot"
             class Message:
                 replied_to_message = Reply()
-            self.assertEqual(router.process_message("what next?", "group-a", "user-a", "alice", True, None, msg=Message(), my_id="bot"), "reply:what next?")
+            self.assertIsNone(router.process_message("what next?", "group-a", "user-a", "alice", True, None, msg=Message(), my_id="bot"))
         finally:
             ai.PROVIDERS = original
+
+    def test_groq_model_not_found_uses_fallback_model(self):
+        class Message:
+            content = "fallback works"
+        class Choice:
+            message = Message()
+        class Response:
+            choices = [Choice()]
+        class Completions:
+            def __init__(self):
+                self.models = []
+            def create(self, **kwargs):
+                self.models.append(kwargs["model"])
+                if len(self.models) == 1:
+                    raise RuntimeError("model_not_found: model does not exist")
+                return Response()
+        class Client:
+            chat = type("Chat", (), {"completions": Completions()})()
+
+        original_client = ai._groq_client
+        original_model = config.AI_MODEL
+        original_fallback = config.GROQ_FALLBACK_MODEL
+        original_key = config.GROQ_API_KEY
+        try:
+            config.GROQ_API_KEY = "test-groq-key"
+            ai._groq_client = Client()
+            config.AI_MODEL = "missing-model"
+            config.GROQ_FALLBACK_MODEL = "fallback-model"
+            self.assertEqual(ai._groq("hello", [], "system"), "fallback works")
+            self.assertEqual(ai._groq_client.chat.completions.models, ["missing-model", "fallback-model"])
+        finally:
+            ai._groq_client = original_client
+            config.AI_MODEL = original_model
+            config.GROQ_FALLBACK_MODEL = original_fallback
+            config.GROQ_API_KEY = original_key
 
     def test_provider_failure_is_user_safe(self):
         original = ai.PROVIDERS.copy()
