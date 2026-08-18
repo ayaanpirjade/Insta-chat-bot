@@ -53,7 +53,7 @@ Personality is configured rather than scattered through handlers. Supported valu
 | `MAX_HISTORY_MESSAGES` | `20` | Maximum stored messages per conversation |
 | `AI_COOLDOWN_SECONDS` | `3` | Per-conversation AI cooldown |
 | `MAX_AI_REQUESTS_PER_MINUTE` | `10` | Per-conversation rolling request limit |
-| `GROUP_AI_MODE` | `false` | Optional automatic group replies; keep disabled by default |
+| `GROUP_AI_MODE` | `false` | Retained for compatibility; ordinary group replies remain disabled |
 
 Conversation memory is isolated by `thread_id:user_id`. It is bounded and can be cleared with `!resetai`, `!forget`, or `!clearchat`.
 
@@ -79,7 +79,7 @@ All AI utilities use the same engine with task-specific prompts.
 
 ## DM and Group Behavior
 
-In direct messages, ordinary text such as `hello`, `what is Python?`, or `write an Instagram caption` is answered naturally. In group chats, the bot does not answer every message. It responds when mentioned, when an explicit AI command is used, or when a message is a reply to a previous bot message. `GROUP_AI_MODE=true` can enable automatic group replies, but this is opt-in.
+In direct messages, ordinary text such as `hello`, `what is Python?`, or `write an Instagram caption` is answered naturally without a tag. In group chats, the bot replies only when its Instagram username is mentioned or when users say `AYAAN AI`; ordinary group messages and replies to previous bot messages are ignored. Explicit prefixed commands such as `!ai` continue to work in groups. `GROUP_AI_MODE` is retained for compatibility but does not enable automatic group replies.
 
 Long replies are split at paragraph, sentence, or whitespace boundaries. The splitter is tested with short text, multiline content, Unicode and emoji, code blocks, and extremely long messages.
 
