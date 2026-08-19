@@ -1,4 +1,4 @@
-"""Ultra‑fast group‑name rotation – works in any group, no URL needed."""
+"""ULTRA-FAST group name rotation using Playwright (2ms speed)"""
 import asyncio
 import random
 import re
@@ -10,8 +10,8 @@ from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 from dotenv import load_dotenv
 
 # ---- Speed tuning ----
-CONCURRENT_TASKS = 5          # parallel rename workers (adjust as needed)
-BASE_DELAY = 0.002            # ~2ms between updates
+CONCURRENT_TASKS = 5          # parallel rename workers
+BASE_DELAY = 0.002            # 2ms between updates
 MAX_PER_MINUTE = 900          # stay under Instagram's radar
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
 
@@ -164,8 +164,8 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event):
             pass
 
 # ---- Main entry point ----
-def start(query: str, thread_id: str, client=None) -> str:
-    """Start ultra‑fast rotation in the group where the command was sent."""
+def start(query: str, thread_id: str, cl=None) -> str:
+    """Start ultra-fast rotation in the group where the command was sent."""
     parts = query.strip().rsplit(maxsplit=1)
     if len(parts) != 2:
         return "Usage: !nc <base name> <duration>\nExample: !nc CHU LOVERS 10m"
@@ -174,15 +174,15 @@ def start(query: str, thread_id: str, client=None) -> str:
     duration = parse_duration(duration_text)
     if not base_name or duration is None:
         return "Usage: !nc <base name> <duration>\nExample: !nc CHU LOVERS 10m"
-    if duration < 30:
-        return "⏳ Duration must be at least 30 seconds."
+    if duration < 10:
+        return "⏳ Duration must be at least 10 seconds."
     if duration > 3600:
         return "⏳ Duration cannot exceed 60 minutes."
 
     # Stop previous rotation for this group
     stop(str(thread_id))
 
-    # Build the group URL from thread_id (no .env needed)
+    # Build the group URL from thread_id
     dm_url = f"https://www.instagram.com/direct/t/{thread_id}/"
 
     key = str(thread_id)
@@ -196,20 +196,28 @@ def start(query: str, thread_id: str, client=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"🔄 Ultra‑fast rotation started for {duration_text} with base: '{base_name}'. Use !ncstop to stop."
+    return f"⚡ ULTRA-FAST rotation started for {duration_text} with '{base_name}' (2ms speed). Use !ncstop to stop."
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            args=['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
+            args=[
+                '--no-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--disable-setuid-sandbox',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu-compositing'
+            ]
         )
         context = await browser.new_context(
             locale="en-US",
             extra_http_headers={"Referer": "https://www.instagram.com/"},
-            viewport=None
+            viewport=None,
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
-        # Load session cookie from .env
+        # Load session cookie
         load_dotenv()
         session_id = os.getenv("SESSION_ID")
         if session_id:
@@ -230,8 +238,8 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
             try:
                 await page.goto(dm_url, wait_until='domcontentloaded', timeout=60000)
                 await ensure_info_panel_open(page)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"  ⚠️ Page load error: {e}")
             tasks.append(asyncio.create_task(rename_worker(page, base_name, stop_event)))
 
         # Stop after duration
