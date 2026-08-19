@@ -11,8 +11,8 @@ import time
 from typing import Dict, Optional
 
 
-MIN_DELAY_SECONDS = 30.0
-MAX_DURATION_SECONDS = 3600.0
+MIN_DELAY_SECONDS = 0.002
+MAX_DURATION_SECONDS = 360000.0
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
 _stop_events: Dict[str, threading.Event] = {}
 _threads: Dict[str, threading.Thread] = {}
