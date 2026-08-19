@@ -133,6 +133,8 @@ def main():
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
     game.load_game_data()
+    print(f"🤖 AI primary: {config.AI_PROVIDER} / {config.AI_MODEL}")
+    print(f"🔁 AI provider fallback order: {', '.join(ai._provider_order())}")
 
     if not config.SESSION_ID:
         print("❌ ERROR: SESSION_ID not found in .env file.")

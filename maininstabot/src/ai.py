@@ -142,8 +142,11 @@ def _groq(user_message: str, history: list[dict[str, str]], system_prompt: str) 
             model_unavailable = "model_not_found" in error_text or "does not exist" in error_text
             if not model_unavailable or index == len(models) - 1:
                 raise
-            logger.warning("Configured Groq model unavailable; trying fallback model")
+            next_model = models[index + 1]
+            logger.warning("Groq model '%s' unavailable; trying fallback model '%s'", model, next_model)
 
+    if response is not None:
+        logger.info("Groq model responded: %s", models[index])
     content = response.choices[0].message.content if response and response.choices else ""
     return (content or "").strip() or None
 
