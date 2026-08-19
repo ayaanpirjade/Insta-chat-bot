@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any
 from instagrapi import Client
 
 # ── Constants ──
-COOLDOWN_SECONDS = 0.5
+COOLDOWN_SECONDS = 0.05
 _last_used: Dict[str, float] = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
