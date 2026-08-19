@@ -184,7 +184,7 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             )
             return result
 
-        elif cmd in ["changename", "setname", "groupname"]:
+        elif cmd in ["changename", "changegroupname", "setname", "groupname"]:
             result = group_admin.handle_changename_command(
                 query=args,
                 user_id=user_id,

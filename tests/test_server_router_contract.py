@@ -6,6 +6,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ServerRouterContractTests(unittest.TestCase):
+    def test_changegroupname_alias_is_supported(self):
+        source = (ROOT / "maininstabot" / "src" / "router.py").read_text()
+        self.assertIn('"changegroupname"', source)
+        self.assertIn("group_admin.handle_changename_command", source)
+
     def test_server_passes_group_flag_to_router(self):
         source = (ROOT / "maininstabot" / "server.py").read_text()
         tree = ast.parse(source)
