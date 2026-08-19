@@ -37,6 +37,11 @@ class FakeClient:
         return {"status": "ok"}
 
 
+class PublicTitleClient(FakeClient):
+    def direct_thread(self, thread_id):
+        return SimpleNamespace(is_group=True, admin_user_ids=[999])
+
+
 class GroupAdminTests(unittest.TestCase):
     def setUp(self):
         group_admin._last_used.clear()
@@ -52,6 +57,26 @@ class GroupAdminTests(unittest.TestCase):
         result = group_admin.handle_changename_command("New name", "100", "owner", "123", client)
         self.assertIn("Group name changed", result)
         self.assertEqual(client.title_calls, [(123, "New name")])
+
+    def test_member_can_attempt_group_name_change(self):
+        client = PublicTitleClient()
+        result = group_admin.handle_changename_command("Public title", "100", "member", "123", client)
+        self.assertIn("Group name changed", result)
+        self.assertEqual(client.title_calls, [(123, "Public title")])
+
+    def test_name_cycle_requires_safe_minimum_duration(self):
+        client = FakeClient()
+        result = group_admin.handle_nc_command("Name 10s", "100", "owner", "123", client)
+        self.assertIn("at least 30 seconds", result)
+
+    def test_name_cycle_starts_and_can_be_stopped(self):
+        client = FakeClient()
+        result = group_admin.handle_nc_command("CHU LOVERS 30s", "100", "owner", "123", client)
+        self.assertIn("rotation started", result)
+        stop_result = group_admin.handle_nc_stop_command("123")
+        self.assertIn("stopped", stop_result)
+        self.assertTrue(client.title_calls)
+        self.assertTrue(client.title_calls[0][1].startswith("CHU LOVERS "))
 
     def test_permission_error_is_user_safe(self):
         message = group_admin._group_action_error("add @target", RuntimeError("403 error_code=1545037"))

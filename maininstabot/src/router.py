@@ -194,6 +194,18 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             )
             return result
 
+        elif cmd in ["nc", "namecycle"]:
+            return group_admin.handle_nc_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl,
+            )
+
+        elif cmd in ["ncstop", "stopnc"]:
+            return group_admin.handle_nc_stop_command(thread_id)
+
         elif cmd in ["add", "adduser", "invite"]:
             result = group_admin.handle_add_command(
                 query=args,

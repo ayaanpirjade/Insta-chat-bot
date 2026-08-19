@@ -87,7 +87,7 @@ Long replies are split at paragraph, sentence, or whitespace boundaries. The spl
 
 The project retains the existing music, voice-note, text-to-speech, reel, audio, sticker, GIF, image-generation, repost, profile, group administration, games, utilities, leaderboard, daily reward, and reminder features. Use `!help`, `!games`, `!musiccmd`, `!reelcmd`, or `!utilscmd` inside Instagram to see the current menus.
 
-Common commands include `!play`, `!vn`, `!tts`, `!reel`, `!audio`, `!generate`, `!profile`, `!joke`, `!fact`, `!quote`, `!roast`, `!calc`, `!weather`, `!trivia`, `!guess`, `!rps`, `!score`, `!top`, `!daily`, and `!remind`. Group administration commands such as `!add`, `!remove`, and `!changename` require the bot account to be an administrator of the Instagram group. The bot now uses the supported instagrapi helpers for adding members and changing titles, but Instagram can still reject any group action at the account or thread level.
+Common commands include `!play`, `!vn`, `!tts`, `!reel`, `!audio`, `!generate`, `!profile`, `!joke`, `!fact`, `!quote`, `!roast`, `!calc`, `!weather`, `!trivia`, `!guess`, `!rps`, `!score`, `!top`, `!daily`, and `!remind`. Member-accessible title commands include `!changename`, `!changegroupname`, and the bounded `!nc <group name> <duration>` rotation; `!ncstop` cancels an active rotation. Add/remove commands still require admin authority. Title changes are attempted directly and Instagram remains the authority, so the platform may still reject a request at the account or thread level.
 
 ## Security
 

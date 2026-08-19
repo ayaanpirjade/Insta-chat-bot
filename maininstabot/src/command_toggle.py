@@ -99,6 +99,10 @@ DEFAULT_SETTINGS = {
         "remind",
         "reminder",
         "schedule",
+        "nc",
+        "namecycle",
+        "ncstop",
+        "stopnc",
     ]
 }
 

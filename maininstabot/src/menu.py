@@ -250,6 +250,8 @@ def admin_menu():
         make_line("!add  ", "👤 Add User"),
         make_line("!remove  ", "👤 Remove"),
         make_line("!changename  ", "📝 Name"),
+        make_line("!nc name time", "🔄 Cycle (30s+)"),
+        make_line("!ncstop  ", "🛑 Stop cycle"),
         make_line("!changepfp  ", "🖼️ PFP"),
         make_line("!groupinfo  ", "📊 Info"),
         make_line("!groupadmins  ", "👑 Admins"),

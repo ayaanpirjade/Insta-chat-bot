@@ -11,6 +11,13 @@ class ServerRouterContractTests(unittest.TestCase):
         self.assertIn('"changegroupname"', source)
         self.assertIn("group_admin.handle_changename_command", source)
 
+    def test_name_cycle_commands_are_supported(self):
+        source = (ROOT / "maininstabot" / "src" / "router.py").read_text()
+        self.assertIn('"nc"', source)
+        self.assertIn('"ncstop"', source)
+        self.assertIn("group_admin.handle_nc_command", source)
+        self.assertIn("group_admin.handle_nc_stop_command", source)
+
     def test_server_passes_group_flag_to_router(self):
         source = (ROOT / "maininstabot" / "server.py").read_text()
         tree = ast.parse(source)
