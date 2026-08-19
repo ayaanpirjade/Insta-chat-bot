@@ -9,6 +9,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import config
 import src.game as game
+import src.ai as ai
 import src.router as router
 import src.scheduler as scheduler
 import src.menu as menu
