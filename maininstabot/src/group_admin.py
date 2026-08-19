@@ -15,12 +15,12 @@ from typing import Optional, Dict, Any
 from instagrapi import Client
 
 # ── Constants ──
-COOLDOWN_SECONDS = 30
+COOLDOWN_SECONDS = 0.5
 _last_used: Dict[str, float] = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-NC_MIN_DELAY_SECONDS = 30.0
+NC_MIN_DELAY_SECONDS = 0.05
 NC_MAX_DURATION_SECONDS = 3600.0
 NC_EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
 _name_cycle_stop: Dict[str, threading.Event] = {}
