@@ -37,7 +37,7 @@ The bot requires a valid Instagram session. Live Instagram behavior cannot be te
 | `OPENAI_MODEL` | OpenAI model name | `gpt-4o-mini` |
 | `OPENAI_BASE_URL` | Optional OpenAI-compatible endpoint | `https://api.openai.com/v1` |
 | `GROQ_API_KEY` | Optional Groq credential | `...` |
-| `AI_MODEL` | Groq model name | `llama-3.1-8b-instant` |
+| `AI_MODEL` | Groq primary model | `llama-3.3-70b-versatile` |
 | `GEMINI_API_KEY` | Optional Gemini credential | `...` |
 
 ## Personality, Memory, and Protection
@@ -115,4 +115,4 @@ If Instagram login or media operations fail, inspect the sanitized console error
 
 The `!vn` voice-note command requires `yt-dlp`, `ffmpeg`, and Deno. When Deno is installed with `curl -fsSL https://deno.land/install.sh | sh`, the bot now detects `/root/.deno/bin/deno` or `$HOME/.deno/bin/deno` even if the bot is launched from a wrapper that does not load `.bashrc`. Restart the shell or use the absolute Deno path if the installation is non-standard. YouTube can return HTTP `403` for one extractor/player profile; the bot now tries a bounded second profile with retries before reporting failure. A persistent 403 is an upstream YouTube/yt-dlp restriction and cannot be guaranteed away by the bot.
 
-If Groq reports `model_not_found`, update the local `.env` to use an active model and fallback list, for example `AI_MODEL=openai/gpt-oss-20b` and `GROQ_FALLBACK_MODELS=openai/gpt-oss-20b,openai/gpt-oss-120b,groq/compound-mini`. If all Groq candidates fail and OpenAI returns HTTP `429`, the configured providers are unavailable or rate-limited; add a working provider key/fallback or wait for the provider limit to reset.
+Groq is the default primary provider with `AI_MODEL=llama-3.3-70b-versatile`. If Groq reports `model_not_found`, update the local `.env` to use an active model and fallback list, for example `GROQ_FALLBACK_MODEL=openai/gpt-oss-20b` and `GROQ_FALLBACK_MODELS=openai/gpt-oss-20b,openai/gpt-oss-120b,groq/compound-mini`. If all Groq candidates fail and OpenAI returns HTTP `429`, the configured providers are unavailable or rate-limited; add a working provider key/fallback or wait for the provider limit to reset.
