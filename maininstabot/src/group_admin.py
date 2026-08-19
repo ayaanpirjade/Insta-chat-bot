@@ -7,6 +7,7 @@ import os
 import re
 import time
 import random
+import json
 import requests
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -17,6 +18,36 @@ COOLDOWN_SECONDS = 30
 _last_used: Dict[str, float] = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+
+def _group_action_error(action: str, exc: Exception) -> str:
+    """Return a useful message without leaking raw Instagram request details."""
+    text = str(exc).lower()
+    if "1545037" in text or "403" in text or "permission" in text or "admin" in text:
+        return (
+            f"❌ Instagram rejected the request to {action}. "
+            "The bot account must be a group admin and Instagram must allow this action."
+        )
+    return f"❌ Failed to {action}: {str(exc)}"
+
+
+def _require_group_admin(cl: Client, thread_id: str) -> Optional[str]:
+    """Validate the target is a group and reject known non-admin sessions early."""
+    try:
+        thread = cl.direct_thread(int(thread_id))
+        if thread is not None and hasattr(thread, "is_group") and not thread.is_group:
+            return "❌ This command works only in group chats."
+
+        admin_ids = getattr(thread, "admin_user_ids", None) if thread is not None else None
+        if admin_ids:
+            normalized = {str(getattr(item, "pk", getattr(item, "id", item))) for item in admin_ids}
+            if str(getattr(cl, "user_id", "")) not in normalized:
+                return "❌ The bot account is not a group admin, so Instagram will reject this action."
+    except Exception:
+        # Let Instagram perform the authoritative permission check when thread
+        # metadata is unavailable or a lightweight mock client is used.
+        pass
+    return None
 
 
 def download_image_from_msg(msg) -> Optional[str]:
@@ -178,19 +209,28 @@ def handle_add_command(query: str, user_id: str, username: str, thread_id: str, 
         
         target_user_id = str(user_info.pk)
         
-        # ✅ WORKING METHOD: Direct API call
+        permission_error = _require_group_admin(cl, thread_id)
+        if permission_error:
+            return permission_error
+
         try:
-            # instagrapi ka internal method
-            cl._send_private_request(
-                f"direct_v2/threads/{thread_id}/add_user/",
-                {'user_ids': f'[{target_user_id}]'}
-            )
+            add_users = getattr(cl, "direct_thread_add_users", None)
+            if callable(add_users):
+                success = add_users(int(thread_id), [int(target_user_id)])
+                if success is False:
+                    raise RuntimeError("Instagram returned a failed add-user response")
+            else:
+                cl.private_request(
+                    f"direct_v2/threads/{thread_id}/add_user/",
+                    data={"_uuid": cl.uuid, "user_ids": json.dumps([str(target_user_id)])},
+                    with_signature=False,
+                )
             print(f"  ✅ User added successfully!")
             return f"✅ **@{target_username} added to the group!**"
-            
+
         except Exception as e:
             print(f"  ⚠️ Failed: {e}")
-            return f"❌ Failed to add user: {str(e)}"
+            return _group_action_error(f"add @{target_username}", e)
         
     except Exception as e:
         print(f"  ⚠️ Failed to add user: {e}")
@@ -238,18 +278,22 @@ def handle_remove_command(query: str, user_id: str, username: str, thread_id: st
         if target_user_id == user_id:
             return "⚠️ You cannot remove yourself! Use !leave to leave the group."
         
-        # ✅ WORKING METHOD: Direct API call
+        permission_error = _require_group_admin(cl, thread_id)
+        if permission_error:
+            return permission_error
+
         try:
-            cl._send_private_request(
+            cl.private_request(
                 f"direct_v2/threads/{thread_id}/remove_user/",
-                {'user_ids': f'[{target_user_id}]'}
+                data={"_uuid": cl.uuid, "user_ids": json.dumps([str(target_user_id)])},
+                with_signature=False,
             )
             print(f"  ✅ User removed successfully!")
             return f"✅ **@{target_username} removed from the group!**"
-            
+
         except Exception as e:
             print(f"  ⚠️ Failed: {e}")
-            return f"❌ Failed to remove user: {str(e)}"
+            return _group_action_error(f"remove @{target_username}", e)
         
     except Exception as e:
         print(f"  ⚠️ Failed to remove user: {e}")
@@ -286,14 +330,29 @@ def handle_changename_command(query: str, user_id: str, username: str, thread_id
     print(f"\n📝 Changing group name for: {username}")
     print(f"  📛 New name: {new_name}")
     
+    permission_error = _require_group_admin(cl, thread_id)
+    if permission_error:
+        return permission_error
+
     try:
-        cl.update_group_title(thread_id, new_name)
+        update_title = getattr(cl, "direct_thread_update_title", None)
+        if callable(update_title):
+            success = update_title(int(thread_id), new_name)
+            if success is False:
+                raise RuntimeError("Instagram returned a failed group-title response")
+        else:
+            legacy_update = getattr(cl, "update_group_title", None)
+            if not callable(legacy_update):
+                raise RuntimeError("The installed Instagram client has no group-title method")
+            success = legacy_update(thread_id, new_name)
+            if success is False:
+                raise RuntimeError("Instagram returned a failed group-title response")
         print(f"  ✅ Group name updated!")
         return f"📝 **Group name changed to:** {new_name}"
-        
+
     except Exception as e:
         print(f"  ⚠️ Failed to change name: {e}")
-        return f"❌ Failed to change group name: {str(e)}"
+        return _group_action_error("change the group name", e)
 
 
 # ── !leave - Leave Group ──
