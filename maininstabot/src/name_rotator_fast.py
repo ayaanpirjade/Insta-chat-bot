@@ -1,15 +1,17 @@
-"""ULTRA-FAST name rotation using direct Instagram API calls - SHARED CLIENT"""
-import time
+"""ULTRA-FAST name rotation using asyncio + concurrent API calls"""
+import asyncio
 import random
-import threading
 import re
+import time
+import threading
 from typing import Dict, Optional
 
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
-MIN_DELAY = 0.002  # 2ms - ULTRA FAST!
+CONCURRENT_TASKS = 20  # 20 concurrent workers
+BASE_DELAY = 0.001     # 1ms delay
 _stop_events: Dict[str, threading.Event] = {}
 _threads: Dict[str, threading.Thread] = {}
-_shared_client = None  # Shared client across all rotations
+_shared_client = None
 _client_lock = threading.Lock()
 
 def parse_duration(value: str) -> Optional[float]:
@@ -48,8 +50,60 @@ def get_shared_client():
                 return None
         return _shared_client
 
+async def rename_worker(thread_id: str, base_name: str, stop_event: threading.Event, worker_id: int):
+    """Single worker that continuously renames the group"""
+    used_names = set()
+    count = 0
+    
+    # Get client once per worker
+    client = get_shared_client()
+    if not client:
+        return
+    
+    while not stop_event.is_set():
+        try:
+            emoji = random.choice(EMOJIS)
+            name = f"{base_name[:95]} {emoji}"
+            
+            if name in used_names:
+                name = f"{name} {random.randint(1,999)}"
+            used_names.add(name)
+            if len(used_names) > 1000:
+                used_names.clear()
+            
+            # Make the API call (this is the bottleneck)
+            client.direct_thread_update_title(int(thread_id), name)
+            count += 1
+            
+            # Print progress occasionally
+            if count % 50 == 0:
+                print(f"  ⚡ Worker {worker_id}: {count} updates")
+            
+            # Ultra-fast delay
+            await asyncio.sleep(BASE_DELAY)
+            
+        except Exception as e:
+            error = str(e).lower()
+            if "rate" in error or "limit" in error or "429" in error:
+                await asyncio.sleep(0.5)
+            else:
+                await asyncio.sleep(0.01)
+
+async def async_runner(thread_id: str, base_name: str, stop_event: threading.Event, duration: float):
+    """Run multiple concurrent workers"""
+    tasks = []
+    for i in range(CONCURRENT_TASKS):
+        tasks.append(asyncio.create_task(rename_worker(thread_id, base_name, stop_event, i+1)))
+    
+    # Wait for duration then stop
+    await asyncio.sleep(duration)
+    stop_event.set()
+    
+    # Wait for all workers to finish
+    await asyncio.gather(*tasks, return_exceptions=True)
+
 def start(query: str, thread_id: str, cl=None) -> str:
-    """Start ultra-fast name rotation using shared client"""
+    """Start ultra-fast async rotation"""
     parts = query.strip().rsplit(maxsplit=1)
     if len(parts) != 2:
         return "Usage: !nc <base name> <duration>\nExample: !nc CHU LOVERS 10m"
@@ -75,70 +129,11 @@ def start(query: str, thread_id: str, cl=None) -> str:
     event = threading.Event()
     _stop_events[key] = event
 
-    def worker():
-        deadline = time.time() + duration
-        used_names = set()
-        update_count = 0
-        start_time = time.time()
-        
-        # Use the shared client
-        local_client = get_shared_client()
-        if not local_client:
-            print("  ❌ No client available")
-            return
-        
-        print(f"  ⚡ Starting ultra-fast rotation (2ms speed)")
-        
-        while not event.is_set() and time.time() < deadline:
-            try:
-                emoji = random.choice(EMOJIS)
-                name = f"{base_name[:95]} {emoji}"
-                
-                # Avoid exact duplicates
-                if name in used_names:
-                    name = f"{name} {random.randint(1,99)}"
-                used_names.add(name)
-                if len(used_names) > 500:
-                    used_names.clear()
-                
-                # Change group name using shared client
-                local_client.direct_thread_update_title(int(thread_id), name)
-                update_count += 1
-                
-                # Print progress every 100 updates
-                if update_count % 100 == 0:
-                    elapsed = time.time() - start_time
-                    speed = update_count / elapsed if elapsed > 0 else 0
-                    print(f"  ⚡ Update #{update_count} ({speed:.0f}/sec): {name}")
-                
-                # ULTRA-FAST delay
-                time.sleep(MIN_DELAY)
-                
-            except Exception as e:
-                error = str(e).lower()
-                if "rate" in error or "limit" in error or "429" in error:
-                    print(f"  ⚠️ Rate limit hit, waiting 1s...")
-                    time.sleep(1)
-                else:
-                    print(f"  ⚠️ Error: {e}")
-                    time.sleep(0.1)
-        
-        # Cleanup
-        _stop_events.pop(key, None)
-        _threads.pop(key, None)
-        elapsed = time.time() - start_time
-        speed = update_count / elapsed if elapsed > 0 else 0
-        print(f"  ✅ Rotation stopped after {update_count} updates in {elapsed:.1f}s ({speed:.0f}/sec)")
+    def run_async():
+        asyncio.run(async_runner(thread_id, base_name, event, duration))
 
-    thread = threading.Thread(target=worker, daemon=True)
+    thread = threading.Thread(target=run_async, daemon=True)
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ ULTRA-FAST rotation started for {duration_text} with '{base_name}' (2ms speed). Use !ncstop to stop."
-
-# Force client refresh if needed
-def refresh_client():
-    global _shared_client
-    with _client_lock:
-        _shared_client = None
-        print("  🔄 Client refreshed for name rotation")
+    return f"⚡ ULTRA-FAST async rotation started for {duration_text} with '{base_name}' ({CONCURRENT_TASKS} workers, 1ms delay). Use !ncstop to stop."
