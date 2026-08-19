@@ -139,6 +139,12 @@ class SpecificationTests(unittest.TestCase):
         finally:
             ai.PROVIDERS = original
 
+    def test_roast_command_uses_game_roasts(self):
+        from src import features, game
+        self.assertTrue(game.ROASTS)
+        result = features.get_roast("@f2xion")
+        self.assertTrue(result.startswith("🔥 Roasting @f2xion:"))
+
     def test_groq_model_not_found_uses_fallback_model(self):
         class Message:
             content = "fallback works"

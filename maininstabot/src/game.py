@@ -28,6 +28,20 @@ def get_groq_client():
 active_games: Dict[str, Dict] = {}
 _used_questions: Dict[str, List[str]] = {}
 
+# ── Roast responses used by !roast ──
+ROASTS = [
+    "You're the reason group chats need a mute button. 🔇",
+    "Your confidence is impressive for someone who skips the tutorial. 🎮",
+    "I'd explain it to you, but I left my crayons at home. 🖍️",
+    "You're not late—you're just operating on your own timezone. ⏰",
+    "Your ideas have great potential… somewhere else. 💀",
+    "If effort were Wi-Fi, your signal would be one bar. 📶",
+    "You're like a software update: nobody asked, but here you are. 🔄",
+    "Your comeback is still loading. Please wait. ⏳",
+    "You bring everyone so much joy… when you leave the chat. 🚪",
+    "You're proof that autocorrect cannot fix everything. ✍️",
+]
+
 # ── 100+ FALLBACK QUESTIONS ──
 FALLBACK_TRIVIA = [
     {"question": "What is the chemical symbol for water?", "options": ["A. H2O", "B. CO2", "C. NaCl", "D. HCl"], "answer": "A", "category": "Science"},
