@@ -16,7 +16,7 @@ from instagrapi import Client
 from .name_cycle import start as _start_name_cycle, stop_command as _stop_name_cycle_command
 
 # ── Constants ──
-COOLDOWN_SECONDS = 30
+COOLDOWN_SECONDS = 0.002
 _last_used: Dict[str, float] = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
