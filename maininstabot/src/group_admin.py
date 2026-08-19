@@ -8,24 +8,18 @@ import re
 import time
 import random
 import json
-import threading
 import requests
 from pathlib import Path
 from typing import Optional, Dict, Any
 from instagrapi import Client
 
+from .name_cycle import start as _start_name_cycle, stop_command as _stop_name_cycle_command
+
 # ── Constants ──
-COOLDOWN_SECONDS = 0.05
+COOLDOWN_SECONDS = 30
 _last_used: Dict[str, float] = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-NC_MIN_DELAY_SECONDS = 0.05
-NC_MAX_DURATION_SECONDS = 3600.0
-NC_EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
-_name_cycle_stop: Dict[str, threading.Event] = {}
-_name_cycle_threads: Dict[str, threading.Thread] = {}
-
 
 def _group_action_error(action: str, exc: Exception) -> str:
     """Return a useful message without leaking raw Instagram request details."""
@@ -38,75 +32,12 @@ def _group_action_error(action: str, exc: Exception) -> str:
     return f"❌ Failed to {action}: {str(exc)}"
 
 
-def _parse_duration(value: str) -> Optional[float]:
-    match = re.fullmatch(r"(\d+(?:\.\d+)?)(s|m|h)?", value.strip().lower())
-    if not match:
-        return None
-    amount = float(match.group(1))
-    unit = match.group(2) or "s"
-    multiplier = {"s": 1, "m": 60, "h": 3600}[unit]
-    return amount * multiplier
-
-
-def _stop_name_cycle(thread_id: str) -> bool:
-    stop_event = _name_cycle_stop.pop(str(thread_id), None)
-    thread = _name_cycle_threads.pop(str(thread_id), None)
-    if stop_event is None:
-        return False
-    stop_event.set()
-    return thread is not None and thread.is_alive()
-
-
 def handle_nc_stop_command(thread_id: str) -> str:
-    stopped = _stop_name_cycle(thread_id)
-    return "🛑 Group-name rotation stopped." if stopped else "ℹ️ No active group-name rotation in this group."
+    return _stop_name_cycle_command(thread_id)
 
 
 def handle_nc_command(query: str, user_id: str, username: str, thread_id: str, cl: Client) -> str:
-    """Rotate a group title at a safe bounded interval until duration expires."""
-    parts = query.strip().rsplit(maxsplit=1)
-    if len(parts) != 2:
-        return "Usage: !nc <group name> <duration>\nExample: !nc CHU LOVERS 10m"
-
-    base_name, duration_text = parts
-    duration = _parse_duration(duration_text)
-    if not base_name or duration is None:
-        return "Usage: !nc <group name> <duration>\nExample: !nc CHU LOVERS 10m"
-    if duration < NC_MIN_DELAY_SECONDS:
-        return "⏳ Duration must be at least 30 seconds."
-    if duration > NC_MAX_DURATION_SECONDS:
-        return "⏳ Duration cannot exceed 60 minutes."
-
-    # Name changes are attempted directly; Instagram decides whether this
-    # member/session is allowed to update the group title.
-    _stop_name_cycle(thread_id)
-
-    stop_event = threading.Event()
-    key = str(thread_id)
-    _name_cycle_stop[key] = stop_event
-
-    def worker() -> None:
-        deadline = time.monotonic() + duration
-        try:
-            while not stop_event.is_set() and time.monotonic() < deadline:
-                title = f"{base_name[:95]} {random.choice(NC_EMOJIS)}"
-                updater = getattr(cl, "direct_thread_update_title", None)
-                if not callable(updater):
-                    raise RuntimeError("The installed Instagram client has no group-title method")
-                if updater(int(thread_id), title) is False:
-                    raise RuntimeError("Instagram rejected the group-title update")
-                remaining = max(0.0, deadline - time.monotonic())
-                stop_event.wait(min(NC_MIN_DELAY_SECONDS, remaining))
-        except Exception as exc:
-            print(f"  ⚠️ Name rotation stopped: {_group_action_error('rotate the group name', exc)}")
-        finally:
-            _name_cycle_stop.pop(key, None)
-            _name_cycle_threads.pop(key, None)
-
-    thread = threading.Thread(target=worker, name=f"name-cycle-{key}", daemon=True)
-    _name_cycle_threads[key] = thread
-    thread.start()
-    return f"🔄 Group-name rotation started for {duration_text}. Updates every 30 seconds. Use !ncstop to stop it."
+    return _start_name_cycle(query, thread_id, cl)
 
 
 def _require_group_admin(cl: Client, thread_id: str) -> Optional[str]:
