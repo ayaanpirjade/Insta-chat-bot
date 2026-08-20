@@ -1,4 +1,4 @@
-"""ULTRA-FAST name rotation using Playwright with Xvfb - TERMUX COMPATIBLE"""
+"""ULTIMATE ULTRA-FAST - Single Account, Browser Automation"""
 import asyncio
 import random
 import re
@@ -10,14 +10,11 @@ from typing import Dict, Optional
 from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 from dotenv import load_dotenv
 
-# ---- Speed tuning ----
-CONCURRENT_TABS = 10          # 10 parallel browser tabs (reduce for Termux)
-BASE_DELAY = 0.002            # 2ms
+CONCURRENT_TABS = 15
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
-
 _stop_events: Dict[str, threading.Event] = {}
 _threads: Dict[str, threading.Thread] = {}
-_xvfb_process = None
+_xvfb_running = False
 
 def parse_duration(value: str) -> Optional[float]:
     match = re.fullmatch(r"(\d+(?:\.\d+)?)(s|m|h)?", value.strip().lower())
@@ -39,37 +36,51 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-def start_xvfb():
-    """Start Xvfb virtual display"""
-    global _xvfb_process
+def ensure_xvfb():
+    """Start Xvfb if not running"""
+    global _xvfb_running
+    if _xvfb_running:
+        return True
+    
     try:
-        # Check if Xvfb is already running
-        result = subprocess.run(['pgrep', 'Xvfb'], capture_output=True)
+        # Check if Xvfb is running
+        result = subprocess.run(['pgrep', '-f', 'Xvfb :99'], capture_output=True)
         if result.returncode == 0:
-            print("  ✅ Xvfb already running")
+            _xvfb_running = True
+            os.environ['DISPLAY'] = ':99'
             return True
         
-        # Start Xvfb on display :99
-        _xvfb_process = subprocess.Popen(
-            ['Xvfb', ':99', '-screen', '0', '1280x720x24'],
+        # Start Xvfb
+        subprocess.Popen(
+            ['Xvfb', ':99', '-screen', '0', '1280x720x24', '-ac'],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
         os.environ['DISPLAY'] = ':99'
-        time.sleep(1)  # Give Xvfb time to start
-        print("  ✅ Xvfb started on display :99")
+        time.sleep(2)
+        _xvfb_running = True
+        print("  ✅ Xvfb started")
         return True
     except Exception as e:
-        print(f"  ❌ Failed to start Xvfb: {e}")
+        print(f"  ⚠️ Xvfb start failed: {e}")
         return False
 
-async def ultra_fast_rename(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """Single worker that renames as fast as possible"""
+async def ultra_rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
+    """ULTRA-FAST rename worker"""
     used_names = set()
     count = 0
     errors = 0
+    success_count = 0
     
-    while not stop_event.is_set() and errors < 20:
+    # Wait for page to be ready
+    try:
+        await page.wait_for_load_state('networkidle', timeout=10000)
+    except:
+        pass
+    
+    print(f"  🔥 Worker {worker_id} ready")
+    
+    while not stop_event.is_set():
         try:
             # Generate unique name
             emoji = random.choice(EMOJIS)
@@ -77,125 +88,147 @@ async def ultra_fast_rename(page, base_name: str, stop_event: threading.Event, w
             if name in used_names:
                 name = f"{name} {random.randint(1,999)}"
             used_names.add(name)
-            if len(used_names) > 1000:
+            if len(used_names) > 500:
                 used_names.clear()
             
-            # Click rename button
+            # ---- STEP 1: Open rename dialog ----
+            dialog_opened = False
+            
+            # Method 1: Click group name header
             try:
-                # Try different selectors
-                selectors = [
-                    'button[aria-label="Change group name"]',
-                    'div[aria-label="Change group name"][role="button"]',
-                    'button:has-text("Change name")',
-                    'button:has-text("Edit group name")',
-                ]
-                
-                clicked = False
-                for selector in selectors:
-                    try:
-                        btn = page.locator(selector).first
-                        if await btn.count() > 0 and await btn.is_visible():
-                            await btn.click(force=True, timeout=100)
-                            await asyncio.sleep(0.001)
-                            clicked = True
-                            break
-                    except:
-                        continue
-                
-                if not clicked:
-                    # Try opening info panel first
-                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
-                    if await info_btn.count() > 0:
-                        await info_btn.click(force=True, timeout=100)
-                        await asyncio.sleep(0.001)
-                        
-                        # Try rename button again
-                        for selector in selectors:
-                            try:
-                                btn = page.locator(selector).first
-                                if await btn.count() > 0:
-                                    await btn.click(force=True, timeout=100)
-                                    await asyncio.sleep(0.001)
-                                    clicked = True
-                                    break
-                            except:
-                                continue
+                header = page.locator('header h2, header div[role="button"]').first
+                if await header.count() > 0:
+                    await header.click(force=True, no_wait_after=True)
+                    await asyncio.sleep(0.001)
+                    dialog_opened = True
             except:
                 pass
             
-            # Find input field
+            # Method 2: Click info button
+            if not dialog_opened:
+                try:
+                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
+                    if await info_btn.count() > 0:
+                        await info_btn.click(force=True, no_wait_after=True)
+                        await asyncio.sleep(0.001)
+                        # Click rename in info panel
+                        rename_btn = page.locator('button:has-text("Change name"), div[role="button"]:has-text("Change name")').first
+                        if await rename_btn.count() > 0:
+                            await rename_btn.click(force=True, no_wait_after=True)
+                            await asyncio.sleep(0.001)
+                            dialog_opened = True
+                except:
+                    pass
+            
+            # Method 3: Click more options
+            if not dialog_opened:
+                try:
+                    dots_btn = page.locator('svg[aria-label="More options"]').first
+                    if await dots_btn.count() > 0:
+                        await dots_btn.click(force=True, no_wait_after=True)
+                        await asyncio.sleep(0.001)
+                        rename_btn = page.locator('div[role="menuitem"]:has-text("Change name"), div[role="menuitem"]:has-text("Edit group name")').first
+                        if await rename_btn.count() > 0:
+                            await rename_btn.click(force=True, no_wait_after=True)
+                            await asyncio.sleep(0.001)
+                            dialog_opened = True
+                except:
+                    pass
+            
+            if not dialog_opened:
+                errors += 1
+                if errors % 10 == 0:
+                    print(f"  ⚠️ Worker {worker_id}: Can't open dialog")
+                await asyncio.sleep(0.01)
+                continue
+            
+            # ---- STEP 2: Find and fill input ----
+            input_field = None
             input_selectors = [
                 'input[aria-label="Group name"]',
                 'input[name="change-group-name"]',
                 '[role="dialog"] input[type="text"]',
                 'input[placeholder*="group name"]',
+                'input[placeholder*="Group name"]',
+                '[role="dialog"] input',
             ]
             
-            input_field = None
             for selector in input_selectors:
                 try:
                     field = page.locator(selector).first
-                    if await field.count() > 0:
+                    if await field.count() > 0 and await field.is_visible():
                         input_field = field
                         break
                 except:
                     continue
             
-            if input_field:
-                try:
-                    await input_field.fill(name, timeout=100)
-                    await asyncio.sleep(0.001)
-                except:
-                    try:
-                        await input_field.click(force=True)
-                        await input_field.fill(name, timeout=100)
-                        await asyncio.sleep(0.001)
-                    except:
-                        pass
+            if not input_field:
+                errors += 1
+                await asyncio.sleep(0.01)
+                continue
             
-            # Click save button
+            # Fill the name
+            try:
+                await input_field.fill(name, timeout=100)
+            except:
+                try:
+                    await input_field.click(force=True)
+                    await input_field.fill(name, timeout=100)
+                except:
+                    pass
+            
+            await asyncio.sleep(0.001)
+            
+            # ---- STEP 3: Click Save ----
+            save_clicked = False
             save_selectors = [
                 'button:has-text("Save")',
                 'div[role="button"]:has-text("Save")',
                 '[role="dialog"] button:has-text("Save")',
+                '[role="dialog"] div[role="button"]:has-text("Save")',
             ]
             
             for selector in save_selectors:
                 try:
                     btn = page.locator(selector).first
-                    if await btn.count() > 0:
-                        await btn.click(force=True, timeout=100)
+                    if await btn.count() > 0 and await btn.is_visible():
+                        await btn.click(force=True, no_wait_after=True)
+                        save_clicked = True
+                        success_count += 1
                         break
                 except:
                     continue
             
-            count += 1
-            errors = 0
+            if save_clicked:
+                count += 1
+                errors = 0
+                
+                if count % 50 == 0:
+                    print(f"  ⚡ Worker {worker_id}: {count} updates")
+            else:
+                errors += 1
             
-            if count % 100 == 0:
-                print(f"  ⚡ Worker {worker_id}: {count} updates")
-            
-            await asyncio.sleep(BASE_DELAY + random.uniform(-0.001, 0.001))
+            # ULTRA-FAST DELAY
+            await asyncio.sleep(0.001)  # 1ms
             
         except Exception as e:
             errors += 1
-            if errors % 10 == 0:
+            if errors % 20 == 0:
                 print(f"  ⚠️ Worker {worker_id} error: {str(e)[:50]}")
             await asyncio.sleep(0.01)
     
-    print(f"  ✅ Worker {worker_id} finished: {count} updates")
+    print(f"  ✅ Worker {worker_id}: {count} successful updates")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Launch multiple concurrent browser tabs with Xvfb"""
-    # Start Xvfb if not running
-    if not start_xvfb():
-        print("  ❌ Xvfb failed to start, using headless mode")
+    """Main async runner"""
+    # Start Xvfb
+    ensure_xvfb()
     
     start_time = time.time()
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(
-            headless=True,  # Always headless in Termux
+            headless=True,
             args=[
                 '--no-sandbox',
                 '--disable-gpu',
@@ -204,7 +237,8 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 '--disable-accelerated-2d-canvas',
                 '--disable-gpu-compositing',
                 '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process'
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-blink-features=AutomationControlled',
             ]
         )
         
@@ -214,7 +248,7 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         
-        # Load session cookie
+        # Load session
         load_dotenv()
         session_id = os.getenv("SESSION_ID")
         if session_id:
@@ -228,47 +262,41 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 "sameSite": "None"
             }])
         
-        print(f"  🌐 Opening {CONCURRENT_TABS} browser tabs...")
+        print(f"  🌐 Opening {CONCURRENT_TABS} tabs...")
         
-        # Create multiple pages
+        # Create tabs
         pages = []
         for i in range(CONCURRENT_TABS):
             page = await context.new_page()
             try:
                 await page.goto(dm_url, wait_until='domcontentloaded', timeout=30000)
-                await page.wait_for_load_state('networkidle', timeout=5000)
                 pages.append(page)
-                print(f"  ✅ Tab {i+1} loaded")
-            except Exception as e:
-                print(f"  ⚠️ Tab {i+1} failed: {e}")
+            except:
                 pages.append(page)
         
         print(f"  🔥 Starting {len(pages)} workers...")
         
-        # Start all workers
+        # Start workers
         tasks = []
         for i, page in enumerate(pages):
             tasks.append(asyncio.create_task(
-                ultra_fast_rename(page, base_name, stop_event, i+1)
+                ultra_rename_worker(page, base_name, stop_event, i+1)
             ))
         
         # Run for duration
         await asyncio.sleep(duration)
         stop_event.set()
         
-        # Wait for all workers to finish
+        # Wait for workers
         await asyncio.gather(*tasks, return_exceptions=True)
         
-        elapsed = time.time() - start_time
-        
-        # Close everything
-        await context.close()
+        # Close
         await browser.close()
         
-        print(f"\n  🎯 Rotation completed in {elapsed:.1f}s")
+        elapsed = time.time() - start_time
+        print(f"  🎯 Completed in {elapsed:.1f}s")
 
 def start(query: str, thread_id: str, cl=None) -> str:
-    """Start ultra-fast name rotation"""
     parts = query.strip().rsplit(maxsplit=1)
     if len(parts) != 2:
         return "Usage: !nc <base name> <duration>\nExample: !nc CHU LOVERS 10m"
@@ -279,8 +307,6 @@ def start(query: str, thread_id: str, cl=None) -> str:
         return "Usage: !nc <base name> <duration>\nExample: !nc CHU LOVERS 10m"
     if duration < 5:
         return "⏳ Duration must be at least 5 seconds."
-    if duration > 3600:
-        return "⏳ Duration cannot exceed 60 minutes."
 
     stop(str(thread_id))
 
@@ -297,4 +323,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ ULTRA-FAST rotation started! {CONCURRENT_TABS} tabs, 2ms delay! Use !ncstop to stop."
+    return f"⚡ ULTIMATE ULTRA-FAST: {CONCURRENT_TABS} tabs, 1ms delay! Use !ncstop to stop."
