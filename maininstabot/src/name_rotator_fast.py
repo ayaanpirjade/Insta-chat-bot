@@ -1,20 +1,15 @@
-"""ULTIMATE ULTRA-FAST - Single Account, Browser Automation"""
-import asyncio
-import random
-import re
+"""LIGHTNING FAST - Single Account, No Browser, Pure API with Ultra-Fast Threading"""
 import time
+import random
 import threading
-import os
-import subprocess
+import re
 from typing import Dict, Optional
-from playwright.async_api import async_playwright, TimeoutError as PWTimeout
-from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor
 
-CONCURRENT_TABS = 15
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
 _stop_events: Dict[str, threading.Event] = {}
 _threads: Dict[str, threading.Thread] = {}
-_xvfb_running = False
+_executor = ThreadPoolExecutor(max_workers=20)  # 20 concurrent threads
 
 def parse_duration(value: str) -> Optional[float]:
     match = re.fullmatch(r"(\d+(?:\.\d+)?)(s|m|h)?", value.strip().lower())
@@ -36,49 +31,24 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-def ensure_xvfb():
-    """Start Xvfb if not running"""
-    global _xvfb_running
-    if _xvfb_running:
-        return True
+def rename_worker(thread_id: str, base_name: str, stop_event: threading.Event, worker_id: int):
+    """Single worker - FAST and RELIABLE"""
+    from .session_manager import RotatingSessionManager
+    sm = RotatingSessionManager()
     
     try:
-        # Check if Xvfb is running
-        result = subprocess.run(['pgrep', '-f', 'Xvfb :99'], capture_output=True)
-        if result.returncode == 0:
-            _xvfb_running = True
-            os.environ['DISPLAY'] = ':99'
-            return True
-        
-        # Start Xvfb
-        subprocess.Popen(
-            ['Xvfb', ':99', '-screen', '0', '1280x720x24', '-ac'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        os.environ['DISPLAY'] = ':99'
-        time.sleep(2)
-        _xvfb_running = True
-        print("  ✅ Xvfb started")
-        return True
-    except Exception as e:
-        print(f"  ⚠️ Xvfb start failed: {e}")
-        return False
-
-async def ultra_rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """ULTRA-FAST rename worker"""
+        client, _ = sm.get_client()
+    except:
+        # If session expired, create new one
+        sm = RotatingSessionManager()
+        client, _ = sm.get_client()
+    
     used_names = set()
     count = 0
     errors = 0
-    success_count = 0
+    start_time = time.time()
     
-    # Wait for page to be ready
-    try:
-        await page.wait_for_load_state('networkidle', timeout=10000)
-    except:
-        pass
-    
-    print(f"  🔥 Worker {worker_id} ready")
+    print(f"  🔥 Worker {worker_id} started")
     
     while not stop_event.is_set():
         try:
@@ -88,215 +58,49 @@ async def ultra_rename_worker(page, base_name: str, stop_event: threading.Event,
             if name in used_names:
                 name = f"{name} {random.randint(1,999)}"
             used_names.add(name)
-            if len(used_names) > 500:
+            if len(used_names) > 100:
                 used_names.clear()
             
-            # ---- STEP 1: Open rename dialog ----
-            dialog_opened = False
+            # DIRECT API CALL - FASTEST METHOD
+            client.direct_thread_update_title(int(thread_id), name)
+            count += 1
+            errors = 0
             
-            # Method 1: Click group name header
-            try:
-                header = page.locator('header h2, header div[role="button"]').first
-                if await header.count() > 0:
-                    await header.click(force=True, no_wait_after=True)
-                    await asyncio.sleep(0.001)
-                    dialog_opened = True
-            except:
-                pass
+            # Print progress
+            if count % 100 == 0:
+                elapsed = time.time() - start_time
+                speed = count / elapsed if elapsed > 0 else 0
+                print(f"  ⚡ Worker {worker_id}: {count} updates ({speed:.0f}/sec)")
             
-            # Method 2: Click info button
-            if not dialog_opened:
-                try:
-                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
-                    if await info_btn.count() > 0:
-                        await info_btn.click(force=True, no_wait_after=True)
-                        await asyncio.sleep(0.001)
-                        # Click rename in info panel
-                        rename_btn = page.locator('button:has-text("Change name"), div[role="button"]:has-text("Change name")').first
-                        if await rename_btn.count() > 0:
-                            await rename_btn.click(force=True, no_wait_after=True)
-                            await asyncio.sleep(0.001)
-                            dialog_opened = True
-                except:
-                    pass
-            
-            # Method 3: Click more options
-            if not dialog_opened:
-                try:
-                    dots_btn = page.locator('svg[aria-label="More options"]').first
-                    if await dots_btn.count() > 0:
-                        await dots_btn.click(force=True, no_wait_after=True)
-                        await asyncio.sleep(0.001)
-                        rename_btn = page.locator('div[role="menuitem"]:has-text("Change name"), div[role="menuitem"]:has-text("Edit group name")').first
-                        if await rename_btn.count() > 0:
-                            await rename_btn.click(force=True, no_wait_after=True)
-                            await asyncio.sleep(0.001)
-                            dialog_opened = True
-                except:
-                    pass
-            
-            if not dialog_opened:
-                errors += 1
-                if errors % 10 == 0:
-                    print(f"  ⚠️ Worker {worker_id}: Can't open dialog")
-                await asyncio.sleep(0.01)
-                continue
-            
-            # ---- STEP 2: Find and fill input ----
-            input_field = None
-            input_selectors = [
-                'input[aria-label="Group name"]',
-                'input[name="change-group-name"]',
-                '[role="dialog"] input[type="text"]',
-                'input[placeholder*="group name"]',
-                'input[placeholder*="Group name"]',
-                '[role="dialog"] input',
-            ]
-            
-            for selector in input_selectors:
-                try:
-                    field = page.locator(selector).first
-                    if await field.count() > 0 and await field.is_visible():
-                        input_field = field
-                        break
-                except:
-                    continue
-            
-            if not input_field:
-                errors += 1
-                await asyncio.sleep(0.01)
-                continue
-            
-            # Fill the name
-            try:
-                await input_field.fill(name, timeout=100)
-            except:
-                try:
-                    await input_field.click(force=True)
-                    await input_field.fill(name, timeout=100)
-                except:
-                    pass
-            
-            await asyncio.sleep(0.001)
-            
-            # ---- STEP 3: Click Save ----
-            save_clicked = False
-            save_selectors = [
-                'button:has-text("Save")',
-                'div[role="button"]:has-text("Save")',
-                '[role="dialog"] button:has-text("Save")',
-                '[role="dialog"] div[role="button"]:has-text("Save")',
-            ]
-            
-            for selector in save_selectors:
-                try:
-                    btn = page.locator(selector).first
-                    if await btn.count() > 0 and await btn.is_visible():
-                        await btn.click(force=True, no_wait_after=True)
-                        save_clicked = True
-                        success_count += 1
-                        break
-                except:
-                    continue
-            
-            if save_clicked:
-                count += 1
-                errors = 0
-                
-                if count % 50 == 0:
-                    print(f"  ⚡ Worker {worker_id}: {count} updates")
-            else:
-                errors += 1
-            
-            # ULTRA-FAST DELAY
-            await asyncio.sleep(0.001)  # 1ms
+            # ULTRA-FAST delay (0.5ms)
+            time.sleep(0.0005)
             
         except Exception as e:
             errors += 1
-            if errors % 20 == 0:
-                print(f"  ⚠️ Worker {worker_id} error: {str(e)[:50]}")
-            await asyncio.sleep(0.01)
+            error_str = str(e).lower()
+            
+            if "rate" in error_str or "limit" in error_str or "429" in error_str:
+                # Rate limit - back off briefly
+                time.sleep(0.1)
+            elif "login" in error_str or "session" in error_str:
+                # Session expired - refresh
+                try:
+                    sm = RotatingSessionManager()
+                    client, _ = sm.get_client()
+                    print(f"  🔄 Worker {worker_id}: Session refreshed")
+                except:
+                    time.sleep(1)
+            else:
+                if errors % 10 == 0:
+                    print(f"  ⚠️ Worker {worker_id} error: {str(e)[:50]}")
+                time.sleep(0.001)
     
-    print(f"  ✅ Worker {worker_id}: {count} successful updates")
-
-async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main async runner"""
-    # Start Xvfb
-    ensure_xvfb()
-    
-    start_time = time.time()
-    
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                '--no-sandbox',
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--disable-setuid-sandbox',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu-compositing',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--disable-blink-features=AutomationControlled',
-            ]
-        )
-        
-        context = await browser.new_context(
-            locale="en-US",
-            viewport={'width': 1280, 'height': 720},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        
-        # Load session
-        load_dotenv()
-        session_id = os.getenv("SESSION_ID")
-        if session_id:
-            await context.add_cookies([{
-                "name": "sessionid",
-                "value": session_id,
-                "domain": ".instagram.com",
-                "path": "/",
-                "httpOnly": True,
-                "secure": True,
-                "sameSite": "None"
-            }])
-        
-        print(f"  🌐 Opening {CONCURRENT_TABS} tabs...")
-        
-        # Create tabs
-        pages = []
-        for i in range(CONCURRENT_TABS):
-            page = await context.new_page()
-            try:
-                await page.goto(dm_url, wait_until='domcontentloaded', timeout=30000)
-                pages.append(page)
-            except:
-                pages.append(page)
-        
-        print(f"  🔥 Starting {len(pages)} workers...")
-        
-        # Start workers
-        tasks = []
-        for i, page in enumerate(pages):
-            tasks.append(asyncio.create_task(
-                ultra_rename_worker(page, base_name, stop_event, i+1)
-            ))
-        
-        # Run for duration
-        await asyncio.sleep(duration)
-        stop_event.set()
-        
-        # Wait for workers
-        await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Close
-        await browser.close()
-        
-        elapsed = time.time() - start_time
-        print(f"  🎯 Completed in {elapsed:.1f}s")
+    elapsed = time.time() - start_time
+    speed = count / elapsed if elapsed > 0 else 0
+    print(f"  ✅ Worker {worker_id}: {count} updates ({speed:.0f}/sec)")
 
 def start(query: str, thread_id: str, cl=None) -> str:
+    """Start lightning-fast rotation"""
     parts = query.strip().rsplit(maxsplit=1)
     if len(parts) != 2:
         return "Usage: !nc <base name> <duration>\nExample: !nc CHU LOVERS 10m"
@@ -308,19 +112,30 @@ def start(query: str, thread_id: str, cl=None) -> str:
     if duration < 5:
         return "⏳ Duration must be at least 5 seconds."
 
+    # Stop previous rotation
     stop(str(thread_id))
-
-    dm_url = f"https://www.instagram.com/direct/t/{thread_id}/"
 
     key = str(thread_id)
     event = threading.Event()
     _stop_events[key] = event
 
-    def run_async():
-        asyncio.run(async_runner(dm_url, base_name, event, duration))
+    # Start 20 workers in parallel
+    threads = []
+    for i in range(20):
+        t = threading.Thread(
+            target=rename_worker,
+            args=(thread_id, base_name, event, i+1),
+            daemon=True
+        )
+        t.start()
+        threads.append(t)
+    
+    # Store threads for cleanup
+    _threads[key] = threads
 
-    thread = threading.Thread(target=run_async, daemon=True)
-    _threads[key] = thread
-    thread.start()
+    return f"⚡ LIGHTNING FAST: 20 workers, 0.5ms delay! Use !ncstop to stop."
 
-    return f"⚡ ULTIMATE ULTRA-FAST: {CONCURRENT_TABS} tabs, 1ms delay! Use !ncstop to stop."
+def clean_up():
+    """Clean up old threads"""
+    for key in list(_stop_events.keys()):
+        stop(key)
