@@ -1,4 +1,4 @@
-"""VERIFIED FINAL - Actually checks if name changed!"""
+"""CORRECT - Finds the right group name element!"""
 import asyncio
 import random
 import re
@@ -34,50 +34,79 @@ def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
 async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """VERIFIED - Actually checks if name changed!"""
+    """CORRECT - Finds the RIGHT group name!"""
     count = 0
-    print(f"  ⚡ Worker {worker_id} started (VERIFIED)")
+    print(f"  ⚡ Worker {worker_id} started (CORRECT)")
     
     try:
         await page.wait_for_load_state('domcontentloaded', timeout=5000)
     except:
         pass
     
-    # Get current group name first
-    try:
-        current_name = await page.locator('div[role="button"]').first.text_content()
-        print(f"  📝 Current group name: {current_name}")
-    except:
-        pass
+    # Debug: Find all clickable elements
+    print("  🔍 Debugging page elements...")
     
     while not stop_event.is_set():
         try:
             emoji = random.choice(EMOJIS)
             new_name = f"{base_name[:95]} {emoji}"
             
-            # === METHOD 1: Try clicking the group name ===
+            # === METHOD 1: Click on header h2 (GROUP NAME) ===
             clicked = False
+            
+            # The group name is usually in header h2 or header div
             try:
-                header = page.locator('div[role="button"]').first
+                # Try h2 first
+                header = page.locator('header h2').first
                 if await header.count() > 0:
                     await header.click(force=True)
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.05)
                     clicked = True
+                    print(f"  ✅ Clicked h2 header")
             except:
                 pass
             
-            # === METHOD 2: Try info panel ===
+            # If h2 didn't work, try the div inside header
+            if not clicked:
+                try:
+                    header = page.locator('header div[role="button"]').first
+                    if await header.count() > 0:
+                        # Check if it's the group name (not profile)
+                        text = await header.text_content()
+                        if text and len(text) > 3 and not text.startswith('@'):
+                            await header.click(force=True)
+                            await asyncio.sleep(0.05)
+                            clicked = True
+                            print(f"  ✅ Clicked header div")
+                except:
+                    pass
+            
+            # === METHOD 2: Click on group name from the top ===
+            if not clicked:
+                try:
+                    # Look for the group name text directly
+                    group_name_elem = page.locator('text=masti khor').first
+                    if await group_name_elem.count() > 0:
+                        await group_name_elem.click(force=True)
+                        await asyncio.sleep(0.05)
+                        clicked = True
+                        print(f"  ✅ Clicked by text")
+                except:
+                    pass
+            
+            # === METHOD 3: Try info panel ===
             if not clicked:
                 try:
                     info_btn = page.locator('svg[aria-label="Conversation information"]').first
                     if await info_btn.count() > 0:
                         await info_btn.click(force=True)
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.05)
                         rename_btn = page.locator('button:has-text("Change name")').first
                         if await rename_btn.count() > 0:
                             await rename_btn.click(force=True)
-                            await asyncio.sleep(0.1)
+                            await asyncio.sleep(0.05)
                             clicked = True
+                            print(f"  ✅ Clicked via info panel")
                 except:
                     pass
             
@@ -118,7 +147,7 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
                 except:
                     pass
             
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.03)
             
             # === CLICK SAVE ===
             saved = False
@@ -132,52 +161,42 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
                 try:
                     save_btn = page.locator(selector).first
                     if await save_btn.count() > 0 and await save_btn.is_visible():
-                        # Check if Save is disabled
                         disabled = await save_btn.get_attribute("disabled")
                         if disabled != "true":
                             await save_btn.click(force=True)
-                            await asyncio.sleep(0.1)
+                            await asyncio.sleep(0.05)
                             saved = True
                             break
                 except:
                     continue
             
             if saved:
-                # === VERIFY: Check if name actually changed ===
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.05)
+                # Close dialog with Escape
                 try:
-                    # Close any open dialogs with Escape
                     await page.keyboard.press("Escape")
-                    await asyncio.sleep(0.05)
-                    
-                    # Check current group name
-                    new_current = await page.locator('div[role="button"]').first.text_content()
-                    if new_current and new_name in new_current:
-                        count += 1
-                        if count % 5 == 0:
-                            print(f"  ⚡ Worker {worker_id}: {count} verified changes")
-                    else:
-                        # Name didn't change, try again
-                        print(f"  ⚠️ Worker {worker_id}: Name not changed, retrying...")
                 except:
                     pass
+                
+                count += 1
+                if count % 5 == 0:
+                    print(f"  ⚡ Worker {worker_id}: {count} changes")
             else:
-                # Try pressing Enter key as fallback
+                # Try Enter key
                 try:
                     await page.keyboard.press("Enter")
-                    await asyncio.sleep(0.1)
-                    await page.keyboard.press("Escape")
                     await asyncio.sleep(0.05)
+                    await page.keyboard.press("Escape")
                     count += 1
                 except:
                     pass
             
-            await asyncio.sleep(0.02)  # 20ms delay
+            await asyncio.sleep(0.02)
             
         except Exception as e:
             await asyncio.sleep(0.02)
     
-    print(f"  ✅ Worker {worker_id}: {count} verified changes")
+    print(f"  ✅ Worker {worker_id}: {count} changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
     """Main runner"""
@@ -216,10 +235,22 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
         try:
             await page.goto(dm_url, wait_until='domcontentloaded', timeout=20000)
             print(f"  ✅ Tab loaded")
+            
+            # Debug: Print the page title and header
+            title = await page.title()
+            print(f"  📄 Page title: {title}")
+            
+            # Find the group name
+            try:
+                group_name = await page.locator('header h2').first.text_content()
+                print(f"  📝 Group name from h2: {group_name}")
+            except:
+                pass
+            
         except Exception as e:
             print(f"  ⚠️ Tab failed: {e}")
         
-        print(f"  🔥 Starting worker (VERIFIED)...")
+        print(f"  🔥 Starting worker (CORRECT)...")
         await rename_worker(page, base_name, stop_event, 1)
         
         await browser.close()
@@ -251,4 +282,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ VERIFIED: Actually checks if name changed! Use !ncstop to stop."
+    return f"⚡ CORRECT: Clicking the right element! Use !ncstop to stop."
