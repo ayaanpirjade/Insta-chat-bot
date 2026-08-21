@@ -1,15 +1,17 @@
-"""HYBRID - API with Smart Rate Limiting (20+ changes/sec)"""
-import time
+"""PLAYWRIGHT WITH JAVASCRIPT - NO RATE LIMITS, ULTRA FAST!"""
+import asyncio
 import random
-import threading
 import re
+import time
+import threading
+import os
 from typing import Dict, Optional
+from playwright.async_api import async_playwright
+from dotenv import load_dotenv
 
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
 _stop_events: Dict[str, threading.Event] = {}
 _threads: Dict[str, threading.Thread] = {}
-_shared_client = None
-_client_lock = threading.Lock()
 
 def parse_duration(value: str) -> Optional[float]:
     match = re.fullmatch(r"(\d+(?:\.\d+)?)(s|m|h)?", value.strip().lower())
@@ -18,21 +20,6 @@ def parse_duration(value: str) -> Optional[float]:
     amount = float(match.group(1))
     unit = match.group(2) or "s"
     return amount * {"s": 1, "m": 60, "h": 3600}[unit]
-
-def get_client():
-    global _shared_client
-    with _client_lock:
-        if _shared_client is None:
-            try:
-                from .session_manager import RotatingSessionManager
-                sm = RotatingSessionManager()
-                client, _ = sm.get_client()
-                _shared_client = client
-                print("  ✅ Shared client created")
-            except Exception as e:
-                print(f"  ❌ Failed: {e}")
-                return None
-        return _shared_client
 
 def stop(thread_id: str) -> bool:
     key = str(thread_id)
@@ -46,45 +33,191 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-def rename_worker(thread_id: str, base_name: str, stop_event: threading.Event, worker_id: int, duration: float):
-    client = get_client()
-    if not client:
-        return
-    
+async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
+    """Worker using JavaScript injection - NO OVERLAY ISSUES!"""
     count = 0
-    used_names = set()
-    start_time = time.time()
-    deadline = start_time + duration
+    print(f"  ⚡ Worker {worker_id} started (JS INJECTION)")
     
-    print(f"  ⚡ Worker {worker_id} started (API)")
+    # Wait for page
+    try:
+        await page.wait_for_load_state('domcontentloaded', timeout=10000)
+    except:
+        pass
     
-    while not stop_event.is_set() and time.time() < deadline:
+    while not stop_event.is_set():
         try:
+            # Generate name
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
-            suffix = random.randint(1, 999)
-            full_name = f"{name} {suffix}"
             
-            client.direct_thread_update_title(int(thread_id), full_name)
-            count += 1
+            # ---- COMPLETE RENAME USING JAVASCRIPT ----
+            # This bypasses ALL overlay issues!
+            result = await page.evaluate(f"""
+                (() => {{
+                    try {{
+                        // STEP 1: Find and click group name
+                        const headers = document.querySelectorAll('div[role="button"]');
+                        let clicked = false;
+                        for (let h of headers) {{
+                            if (h.textContent && h.textContent.includes('MASTI KHOR')) {{
+                                h.click();
+                                clicked = true;
+                                break;
+                            }}
+                        }}
+                        
+                        // If header click failed, try info panel
+                        if (!clicked) {{
+                            const infoBtn = document.querySelector('svg[aria-label="Conversation information"]');
+                            if (infoBtn) {{
+                                infoBtn.closest('div[role="button"]')?.click();
+                                setTimeout(() => {{
+                                    const btns = document.querySelectorAll('button, div[role="button"]');
+                                    for (let btn of btns) {{
+                                        if (btn.textContent && btn.textContent.includes('Change name')) {{
+                                            btn.click();
+                                            break;
+                                        }}
+                                    }}
+                                }}, 100);
+                                clicked = true;
+                            }}
+                        }}
+                        
+                        if (!clicked) return 'no_click';
+                        
+                        // STEP 2: Find input and fill
+                        setTimeout(() => {{
+                            const inputs = document.querySelectorAll('input');
+                            for (let inp of inputs) {{
+                                if (inp.getAttribute('aria-label') === 'Group name') {{
+                                    inp.value = '{name}';
+                                    inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                    break;
+                                }}
+                            }}
+                        }}, 150);
+                        
+                        // STEP 3: Click Save
+                        setTimeout(() => {{
+                            const btns = document.querySelectorAll('button, div[role="button"]');
+                            for (let btn of btns) {{
+                                if (btn.textContent && btn.textContent.includes('Save')) {{
+                                    btn.click();
+                                    break;
+                                }}
+                            }}
+                        }}, 250);
+                        
+                        return 'success';
+                    }} catch(e) {{
+                        return 'error: ' + e.message;
+                    }}
+                }})()
+            """)
             
-            if count % 20 == 0:
-                elapsed = time.time() - start_time
-                speed = count / elapsed if elapsed > 0 else 0
-                print(f"  ⚡ Worker {worker_id}: {count} updates ({speed:.0f}/sec)")
-            
-            # 50ms delay = 20 changes/sec per worker
-            time.sleep(0.05)
+            if 'success' in result:
+                count += 1
+                if count % 10 == 0:
+                    print(f"  ⚡ Worker {worker_id}: {count} changes")
+                
+                # Wait between changes (realistic timing)
+                await asyncio.sleep(0.2)
+            else:
+                # If failed, try direct click with force
+                try:
+                    # Direct click with force
+                    header = page.locator('div[role="button"]').first
+                    if await header.count() > 0:
+                        await header.click(force=True)
+                        await asyncio.sleep(0.2)
+                        
+                        # Find input
+                        input_field = page.locator('input[aria-label="Group name"]').first
+                        if await input_field.count() > 0:
+                            await input_field.fill(name)
+                            await asyncio.sleep(0.1)
+                            
+                            # Save
+                            save_btn = page.locator('button:has-text("Save")').first
+                            if await save_btn.count() > 0:
+                                await save_btn.click(force=True)
+                                count += 1
+                                if count % 10 == 0:
+                                    print(f"  ⚡ Worker {worker_id}: {count} changes")
+                                await asyncio.sleep(0.2)
+                except Exception as e:
+                    await asyncio.sleep(0.1)
             
         except Exception as e:
-            error = str(e).lower()
-            if "429" in error or "rate" in error:
-                print(f"  ⚠️ Worker {worker_id}: Rate limit, waiting...")
-                time.sleep(2)
-            else:
-                time.sleep(0.1)
+            await asyncio.sleep(0.1)
     
     print(f"  ✅ Worker {worker_id}: {count} changes")
+
+async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
+    """Main runner with 3 tabs"""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--disable-setuid-sandbox'
+            ]
+        )
+        
+        context = await browser.new_context(
+            viewport={'width': 1280, 'height': 720},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        
+        # Load session
+        load_dotenv()
+        session_id = os.getenv("SESSION_ID")
+        if session_id:
+            await context.add_cookies([{
+                "name": "sessionid",
+                "value": session_id,
+                "domain": ".instagram.com",
+                "path": "/",
+                "httpOnly": True,
+                "secure": True,
+                "sameSite": "None"
+            }])
+        
+        # Use 3 tabs
+        num_tabs = 3
+        print(f"  🌐 Opening {num_tabs} tabs...")
+        
+        pages = []
+        for i in range(num_tabs):
+            page = await context.new_page()
+            try:
+                await page.goto(dm_url, wait_until='domcontentloaded', timeout=30000)
+                pages.append(page)
+                print(f"  ✅ Tab {i+1} loaded")
+            except Exception as e:
+                print(f"  ⚠️ Tab {i+1} failed: {e}")
+                pages.append(page)
+        
+        print(f"  🔥 Starting {len(pages)} workers (JS INJECTION)...")
+        
+        # Start workers
+        tasks = []
+        for i, page in enumerate(pages):
+            tasks.append(asyncio.create_task(
+                rename_worker(page, base_name, stop_event, i+1)
+            ))
+        
+        # Run for duration
+        await asyncio.sleep(duration)
+        stop_event.set()
+        
+        # Wait for workers
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        await browser.close()
 
 def start(query: str, thread_id: str, cl=None) -> str:
     parts = query.strip().rsplit(maxsplit=1)
@@ -99,34 +232,18 @@ def start(query: str, thread_id: str, cl=None) -> str:
         return "⏳ Duration must be at least 5 seconds."
 
     stop(str(thread_id))
-    
-    client = get_client()
-    if not client:
-        return "❌ Failed to create client"
+
+    dm_url = f"https://www.instagram.com/direct/t/{thread_id}/"
 
     key = str(thread_id)
     event = threading.Event()
     _stop_events[key] = event
 
-    num_workers = 3
-    threads = []
-    for i in range(num_workers):
-        t = threading.Thread(
-            target=rename_worker,
-            args=(thread_id, base_name, event, i+1, duration),
-            daemon=True
-        )
-        t.start()
-        threads.append(t)
-    
-    def monitor():
-        for t in threads:
-            t.join()
-        _stop_events.pop(key, None)
-        _threads.pop(key, None)
-    
-    monitor_thread = threading.Thread(target=monitor, daemon=True)
-    _threads[key] = monitor_thread
-    monitor_thread.start()
+    def run_async():
+        asyncio.run(async_runner(dm_url, base_name, event, duration))
 
-    return f"⚡ API: {num_workers} workers, 20 changes/sec each! Use !ncstop to stop."
+    thread = threading.Thread(target=run_async, daemon=True)
+    _threads[key] = thread
+    thread.start()
+
+    return f"⚡ JS INJECTION: 3 tabs, NO RATE LIMITS! Use !ncstop to stop."
