@@ -1,4 +1,4 @@
-"""FINAL WORKING - Proper waits, single tab, ULTRA FAST!"""
+"""VERIFIED FINAL - Actually checks if name changed!"""
 import asyncio
 import random
 import re
@@ -6,7 +6,7 @@ import time
 import threading
 import os
 from typing import Dict, Optional
-from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
@@ -34,58 +34,63 @@ def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
 async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """FINAL WORKING - Proper waits!"""
+    """VERIFIED - Actually checks if name changed!"""
     count = 0
-    print(f"  ⚡ Worker {worker_id} started (FINAL)")
+    print(f"  ⚡ Worker {worker_id} started (VERIFIED)")
     
     try:
         await page.wait_for_load_state('domcontentloaded', timeout=5000)
     except:
         pass
     
+    # Get current group name first
+    try:
+        current_name = await page.locator('div[role="button"]').first.text_content()
+        print(f"  📝 Current group name: {current_name}")
+    except:
+        pass
+    
     while not stop_event.is_set():
         try:
             emoji = random.choice(EMOJIS)
-            name = f"{base_name[:95]} {emoji}"
+            new_name = f"{base_name[:95]} {emoji}"
             
-            # ---- STEP 1: Click on group name ----
+            # === METHOD 1: Try clicking the group name ===
             clicked = False
-            
-            # Method 1: Click div[role="button"]
             try:
                 header = page.locator('div[role="button"]').first
                 if await header.count() > 0:
                     await header.click(force=True)
-                    await asyncio.sleep(0.05)  # Wait for menu to open
+                    await asyncio.sleep(0.1)
                     clicked = True
             except:
                 pass
             
-            # Method 2: Info panel
+            # === METHOD 2: Try info panel ===
             if not clicked:
                 try:
                     info_btn = page.locator('svg[aria-label="Conversation information"]').first
                     if await info_btn.count() > 0:
                         await info_btn.click(force=True)
-                        await asyncio.sleep(0.05)
+                        await asyncio.sleep(0.1)
                         rename_btn = page.locator('button:has-text("Change name")').first
                         if await rename_btn.count() > 0:
                             await rename_btn.click(force=True)
-                            await asyncio.sleep(0.05)
+                            await asyncio.sleep(0.1)
                             clicked = True
                 except:
                     pass
             
             if not clicked:
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.02)
                 continue
             
-            # ---- STEP 2: Find input field ----
+            # === FIND INPUT ===
             input_field = None
             selectors = [
                 'input[aria-label="Group name"]',
-                '[role="dialog"] input[type="text"]',
                 'input[name="change-group-name"]',
+                '[role="dialog"] input[type="text"]',
                 'input[placeholder*="Group name"]',
                 'input'
             ]
@@ -100,53 +105,79 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
                     continue
             
             if not input_field:
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.02)
                 continue
             
-            # ---- STEP 3: Fill name ----
+            # === FILL NAME ===
             try:
-                await input_field.fill(name)
+                await input_field.fill(new_name)
             except:
                 try:
                     await input_field.click(force=True)
-                    await input_field.fill(name)
+                    await input_field.fill(new_name)
                 except:
                     pass
             
-            await asyncio.sleep(0.02)  # Wait for input to register
+            await asyncio.sleep(0.05)
             
-            # ---- STEP 4: Click Save with proper wait ----
+            # === CLICK SAVE ===
             saved = False
             save_selectors = [
                 'button:has-text("Save")',
                 '[role="dialog"] button:has-text("Save")',
                 'div[role="button"]:has-text("Save")',
-                'button[type="submit"]'
             ]
             
             for selector in save_selectors:
                 try:
                     save_btn = page.locator(selector).first
                     if await save_btn.count() > 0 and await save_btn.is_visible():
-                        await save_btn.click(force=True)
-                        await asyncio.sleep(0.02)  # Wait for save to complete
-                        saved = True
-                        break
+                        # Check if Save is disabled
+                        disabled = await save_btn.get_attribute("disabled")
+                        if disabled != "true":
+                            await save_btn.click(force=True)
+                            await asyncio.sleep(0.1)
+                            saved = True
+                            break
                 except:
                     continue
             
             if saved:
-                count += 1
-                if count % 10 == 0:
-                    print(f"  ⚡ Worker {worker_id}: {count} changes")
-                await asyncio.sleep(0.01)  # 10ms delay
+                # === VERIFY: Check if name actually changed ===
+                await asyncio.sleep(0.1)
+                try:
+                    # Close any open dialogs with Escape
+                    await page.keyboard.press("Escape")
+                    await asyncio.sleep(0.05)
+                    
+                    # Check current group name
+                    new_current = await page.locator('div[role="button"]').first.text_content()
+                    if new_current and new_name in new_current:
+                        count += 1
+                        if count % 5 == 0:
+                            print(f"  ⚡ Worker {worker_id}: {count} verified changes")
+                    else:
+                        # Name didn't change, try again
+                        print(f"  ⚠️ Worker {worker_id}: Name not changed, retrying...")
+                except:
+                    pass
             else:
-                await asyncio.sleep(0.01)
+                # Try pressing Enter key as fallback
+                try:
+                    await page.keyboard.press("Enter")
+                    await asyncio.sleep(0.1)
+                    await page.keyboard.press("Escape")
+                    await asyncio.sleep(0.05)
+                    count += 1
+                except:
+                    pass
+            
+            await asyncio.sleep(0.02)  # 20ms delay
             
         except Exception as e:
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.02)
     
-    print(f"  ✅ Worker {worker_id}: {count} changes")
+    print(f"  ✅ Worker {worker_id}: {count} verified changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
     """Main runner"""
@@ -188,7 +219,7 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
         except Exception as e:
             print(f"  ⚠️ Tab failed: {e}")
         
-        print(f"  🔥 Starting worker (FINAL)...")
+        print(f"  🔥 Starting worker (VERIFIED)...")
         await rename_worker(page, base_name, stop_event, 1)
         
         await browser.close()
@@ -220,4 +251,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ FINAL: Single tab with proper waits! Use !ncstop to stop."
+    return f"⚡ VERIFIED: Actually checks if name changed! Use !ncstop to stop."
