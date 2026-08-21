@@ -1,17 +1,15 @@
-"""FIXED PLAYWRIGHT - Bypass overlay with JavaScript click"""
-import asyncio
-import random
-import re
+"""HYBRID - API with Smart Rate Limiting (20+ changes/sec)"""
 import time
+import random
 import threading
-import os
+import re
 from typing import Dict, Optional
-from playwright.async_api import async_playwright
-from dotenv import load_dotenv
 
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
 _stop_events: Dict[str, threading.Event] = {}
 _threads: Dict[str, threading.Thread] = {}
+_shared_client = None
+_client_lock = threading.Lock()
 
 def parse_duration(value: str) -> Optional[float]:
     match = re.fullmatch(r"(\d+(?:\.\d+)?)(s|m|h)?", value.strip().lower())
@@ -20,6 +18,21 @@ def parse_duration(value: str) -> Optional[float]:
     amount = float(match.group(1))
     unit = match.group(2) or "s"
     return amount * {"s": 1, "m": 60, "h": 3600}[unit]
+
+def get_client():
+    global _shared_client
+    with _client_lock:
+        if _shared_client is None:
+            try:
+                from .session_manager import RotatingSessionManager
+                sm = RotatingSessionManager()
+                client, _ = sm.get_client()
+                _shared_client = client
+                print("  ✅ Shared client created")
+            except Exception as e:
+                print(f"  ❌ Failed: {e}")
+                return None
+        return _shared_client
 
 def stop(thread_id: str) -> bool:
     key = str(thread_id)
@@ -33,210 +46,45 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-async def js_click(page, selector):
-    """Click using JavaScript - bypasses overlays"""
-    try:
-        await page.evaluate(f"""
-            (() => {{
-                const el = document.querySelector('{selector}');
-                if (el) {{
-                    el.click();
-                    return true;
-                }}
-                return false;
-            }})()
-        """)
-        return True
-    except:
-        return False
-
-async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """Worker using JavaScript clicks to bypass overlays"""
+def rename_worker(thread_id: str, base_name: str, stop_event: threading.Event, worker_id: int, duration: float):
+    client = get_client()
+    if not client:
+        return
+    
     count = 0
-    print(f"  ⚡ Worker {worker_id} started (JS CLICK)")
+    used_names = set()
+    start_time = time.time()
+    deadline = start_time + duration
     
-    try:
-        await page.wait_for_load_state('domcontentloaded', timeout=10000)
-    except:
-        pass
+    print(f"  ⚡ Worker {worker_id} started (API)")
     
-    while not stop_event.is_set():
+    while not stop_event.is_set() and time.time() < deadline:
         try:
-            # Generate name
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
+            suffix = random.randint(1, 999)
+            full_name = f"{name} {suffix}"
             
-            # ---- STEP 1: Click group name using JS ----
-            clicked = False
+            client.direct_thread_update_title(int(thread_id), full_name)
+            count += 1
             
-            # Try JavaScript click on div[role="button"]
-            try:
-                result = await page.evaluate("""
-                    (() => {
-                        const els = document.querySelectorAll('div[role="button"]');
-                        for (let el of els) {
-                            if (el.textContent && el.textContent.includes('MASTI KHOR')) {
-                                el.click();
-                                return true;
-                            }
-                        }
-                        return false;
-                    })()
-                """)
-                if result:
-                    clicked = True
-                    await asyncio.sleep(0.15)
-            except:
-                pass
+            if count % 20 == 0:
+                elapsed = time.time() - start_time
+                speed = count / elapsed if elapsed > 0 else 0
+                print(f"  ⚡ Worker {worker_id}: {count} updates ({speed:.0f}/sec)")
             
-            # If that fails, try info panel
-            if not clicked:
-                try:
-                    await page.evaluate("""
-                        (() => {
-                            const el = document.querySelector('svg[aria-label="Conversation information"]');
-                            if (el) {
-                                el.closest('div[role="button"]')?.click();
-                                return true;
-                            }
-                            return false;
-                        })()
-                    """)
-                    await asyncio.sleep(0.15)
-                    
-                    # Click rename button
-                    await page.evaluate("""
-                        (() => {
-                            const btns = document.querySelectorAll('button, div[role="button"]');
-                            for (let btn of btns) {
-                                if (btn.textContent && btn.textContent.includes('Change name')) {
-                                    btn.click();
-                                    return true;
-                                }
-                            }
-                            return false;
-                        })()
-                    """)
-                    await asyncio.sleep(0.15)
-                    clicked = True
-                except:
-                    pass
-            
-            if not clicked:
-                await asyncio.sleep(0.05)
-                continue
-            
-            # ---- STEP 2: Find and fill input using JS ----
-            try:
-                await page.evaluate(f"""
-                    (() => {{
-                        const inputs = document.querySelectorAll('input');
-                        for (let inp of inputs) {{
-                            if (inp.getAttribute('aria-label') === 'Group name') {{
-                                inp.value = '{name}';
-                                inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                                return true;
-                            }}
-                        }}
-                        return false;
-                    }})()
-                """)
-                await asyncio.sleep(0.05)
-            except:
-                pass
-            
-            # ---- STEP 3: Click Save using JS ----
-            saved = False
-            try:
-                result = await page.evaluate("""
-                    (() => {
-                        const btns = document.querySelectorAll('button, div[role="button"]');
-                        for (let btn of btns) {
-                            if (btn.textContent && btn.textContent.includes('Save')) {
-                                btn.click();
-                                return true;
-                            }
-                        }
-                        return false;
-                    })()
-                """)
-                if result:
-                    saved = True
-            except:
-                pass
-            
-            if saved:
-                count += 1
-                if count % 10 == 0:
-                    print(f"  ⚡ Worker {worker_id}: {count} changes")
-                await asyncio.sleep(0.05)
-            else:
-                await asyncio.sleep(0.02)
+            # 50ms delay = 20 changes/sec per worker
+            time.sleep(0.05)
             
         except Exception as e:
-            print(f"  ⚠️ Worker {worker_id} error: {str(e)[:30]}")
-            await asyncio.sleep(0.05)
+            error = str(e).lower()
+            if "429" in error or "rate" in error:
+                print(f"  ⚠️ Worker {worker_id}: Rate limit, waiting...")
+                time.sleep(2)
+            else:
+                time.sleep(0.1)
     
     print(f"  ✅ Worker {worker_id}: {count} changes")
-
-async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner with 3 tabs and JS clicks"""
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                '--no-sandbox',
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--disable-setuid-sandbox'
-            ]
-        )
-        
-        context = await browser.new_context(
-            viewport={'width': 1280, 'height': 720},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        
-        load_dotenv()
-        session_id = os.getenv("SESSION_ID")
-        if session_id:
-            await context.add_cookies([{
-                "name": "sessionid",
-                "value": session_id,
-                "domain": ".instagram.com",
-                "path": "/",
-                "httpOnly": True,
-                "secure": True,
-                "sameSite": "None"
-            }])
-        
-        num_tabs = 3
-        print(f"  🌐 Opening {num_tabs} tabs...")
-        
-        pages = []
-        for i in range(num_tabs):
-            page = await context.new_page()
-            try:
-                await page.goto(dm_url, wait_until='domcontentloaded', timeout=30000)
-                pages.append(page)
-                print(f"  ✅ Tab {i+1} loaded")
-            except Exception as e:
-                print(f"  ⚠️ Tab {i+1} failed: {e}")
-                pages.append(page)
-        
-        print(f"  🔥 Starting {len(pages)} workers (JS CLICK)...")
-        
-        tasks = []
-        for i, page in enumerate(pages):
-            tasks.append(asyncio.create_task(
-                rename_worker(page, base_name, stop_event, i+1)
-            ))
-        
-        await asyncio.sleep(duration)
-        stop_event.set()
-        
-        await asyncio.gather(*tasks, return_exceptions=True)
-        await browser.close()
 
 def start(query: str, thread_id: str, cl=None) -> str:
     parts = query.strip().rsplit(maxsplit=1)
@@ -251,18 +99,34 @@ def start(query: str, thread_id: str, cl=None) -> str:
         return "⏳ Duration must be at least 5 seconds."
 
     stop(str(thread_id))
-
-    dm_url = f"https://www.instagram.com/direct/t/{thread_id}/"
+    
+    client = get_client()
+    if not client:
+        return "❌ Failed to create client"
 
     key = str(thread_id)
     event = threading.Event()
     _stop_events[key] = event
 
-    def run_async():
-        asyncio.run(async_runner(dm_url, base_name, event, duration))
+    num_workers = 3
+    threads = []
+    for i in range(num_workers):
+        t = threading.Thread(
+            target=rename_worker,
+            args=(thread_id, base_name, event, i+1, duration),
+            daemon=True
+        )
+        t.start()
+        threads.append(t)
+    
+    def monitor():
+        for t in threads:
+            t.join()
+        _stop_events.pop(key, None)
+        _threads.pop(key, None)
+    
+    monitor_thread = threading.Thread(target=monitor, daemon=True)
+    _threads[key] = monitor_thread
+    monitor_thread.start()
 
-    thread = threading.Thread(target=run_async, daemon=True)
-    _threads[key] = thread
-    thread.start()
-
-    return f"⚡ JS CLICK: 3 tabs, bypass overlay! Use !ncstop to stop."
+    return f"⚡ API: {num_workers} workers, 20 changes/sec each! Use !ncstop to stop."
