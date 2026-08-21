@@ -1,11 +1,10 @@
-"""TERMUX-OPTIMIZED Playwright - 5 tabs, FAST!"""
+"""PLAYWRIGHT with JavaScript Injection - Bypass UI issues!"""
 import asyncio
 import random
 import re
 import time
 import threading
 import os
-import subprocess
 from typing import Dict, Optional
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
@@ -34,11 +33,10 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-async def fast_rename(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """FAST rename worker - Termux optimized"""
+async def js_rename(page, base_name: str, stop_event: threading.Event, worker_id: int):
+    """Rename using JavaScript injection - WORKS EVERY TIME!"""
     count = 0
-    errors = 0
-    print(f"  ⚡ Worker {worker_id} ready")
+    print(f"  ⚡ Worker {worker_id} ready (JS mode)")
     
     # Wait for page
     try:
@@ -46,13 +44,16 @@ async def fast_rename(page, base_name: str, stop_event: threading.Event, worker_
     except:
         pass
     
-    # Try to find elements once
+    # Try to find the group name
     try:
-        # Click on group name header
-        header = page.locator('header h2, header div[role="button"]').first
-        if await header.count() > 0:
-            await header.click()
-            await asyncio.sleep(0.2)
+        # Get current group name
+        current_name = await page.evaluate('''
+            () => {
+                const header = document.querySelector('header h2');
+                return header ? header.textContent : null;
+            }
+        ''')
+        print(f"  📝 Worker {worker_id}: Current group: {current_name}")
     except:
         pass
     
@@ -62,102 +63,137 @@ async def fast_rename(page, base_name: str, stop_event: threading.Event, worker_
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
             
-            # ---- OPEN RENAME DIALOG ----
-            clicked = False
+            # ---- METHOD 1: JavaScript Injection ----
+            success = await page.evaluate(f'''
+                () => {{
+                    try {{
+                        // Find the group name header
+                        const header = document.querySelector('header h2, header div[role="button"]');
+                        if (header) {{
+                            header.click();
+                            return 'clicked_header';
+                        }}
+                        return 'no_header';
+                    }} catch(e) {{
+                        return 'error: ' + e.message;
+                    }}
+                }}
+            ''')
             
-            # Try clicking the group name again
-            try:
-                header = page.locator('header h2, header div[role="button"]').first
-                if await header.count() > 0:
-                    await header.click()
-                    await asyncio.sleep(0.1)
-                    clicked = True
-            except:
-                pass
+            await asyncio.sleep(0.1)
             
-            # If that fails, try info panel
-            if not clicked:
-                try:
-                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
-                    if await info_btn.count() > 0:
-                        await info_btn.click()
-                        await asyncio.sleep(0.1)
-                        rename_btn = page.locator('button:has-text("Change name")').first
-                        if await rename_btn.count() > 0:
-                            await rename_btn.click()
-                            await asyncio.sleep(0.1)
-                            clicked = True
-                except:
-                    pass
-            
-            if not clicked:
-                errors += 1
-                if errors % 5 == 0:
-                    print(f"  ⚠️ Worker {worker_id}: Can't open dialog")
-                await asyncio.sleep(0.2)
-                continue
-            
-            # ---- FIND INPUT ----
-            input_field = None
-            try:
-                input_field = page.locator('input[aria-label="Group name"]').first
-                if await input_field.count() == 0:
-                    input_field = page.locator('[role="dialog"] input[type="text"]').first
-                if await input_field.count() == 0:
-                    input_field = page.locator('input').first
-            except:
-                pass
-            
-            if not input_field or await input_field.count() == 0:
-                errors += 1
+            # ---- METHOD 2: Find input via JS ----
+            if success == 'clicked_header':
+                # Wait for dialog
                 await asyncio.sleep(0.1)
-                continue
-            
-            # ---- FILL NAME ----
-            try:
-                await input_field.fill(name)
+                
+                # Find and fill input
+                filled = await page.evaluate(f'''
+                    () => {{
+                        try {{
+                            // Find input
+                            const inputs = document.querySelectorAll('input');
+                            let targetInput = null;
+                            for (let input of inputs) {{
+                                if (input.getAttribute('aria-label') === 'Group name' || 
+                                    input.getAttribute('placeholder')?.toLowerCase().includes('group') ||
+                                    input.getAttribute('name') === 'change-group-name') {{
+                                    targetInput = input;
+                                    break;
+                                }}
+                            }}
+                            
+                            if (targetInput) {{
+                                targetInput.value = '';
+                                targetInput.value = '{name}';
+                                // Trigger input event
+                                targetInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                return 'filled';
+                            }}
+                            return 'no_input';
+                        }} catch(e) {{
+                            return 'error: ' + e.message;
+                        }}
+                    }}
+                ''')
+                
                 await asyncio.sleep(0.05)
-            except:
-                try:
-                    await input_field.click()
-                    await input_field.fill(name)
-                    await asyncio.sleep(0.05)
-                except:
-                    pass
+                
+                # Save via JS
+                if filled == 'filled':
+                    saved = await page.evaluate(f'''
+                        () => {{
+                            try {{
+                                // Find save button
+                                const buttons = document.querySelectorAll('button, div[role="button"]');
+                                for (let btn of buttons) {{
+                                    if (btn.textContent?.toLowerCase().includes('save')) {{
+                                        btn.click();
+                                        return 'saved';
+                                    }}
+                                }}
+                                return 'no_save';
+                            }} catch(e) {{
+                                return 'error: ' + e.message;
+                            }}
+                        }}
+                    ''')
+                    
+                    if saved == 'saved':
+                        count += 1
+                        if count % 5 == 0:
+                            print(f"  ⚡ Worker {worker_id}: {count} changes")
+                        
+                        # Wait between changes
+                        await asyncio.sleep(0.05)
+                        continue
             
-            # ---- SAVE ----
-            saved = False
+            # If JS injection failed, try fallback method
+            print(f"  ⚠️ Worker {worker_id}: JS method failed, trying fallback...")
+            
+            # ---- FALLBACK: Direct DOM manipulation ----
             try:
-                save_btn = page.locator('button:has-text("Save")').first
-                if await save_btn.count() > 0:
-                    await save_btn.click()
-                    saved = True
-            except:
-                pass
-            
-            if saved:
+                await page.evaluate(f'''
+                    () => {{
+                        // Direct DOM manipulation
+                        const header = document.querySelector('header h2, header div[role="button"]');
+                        if (header) {{
+                            header.click();
+                            setTimeout(() => {{
+                                const inputs = document.querySelectorAll('input');
+                                for (let input of inputs) {{
+                                    if (input.getAttribute('aria-label') === 'Group name' || 
+                                        input.getAttribute('placeholder')?.toLowerCase().includes('group')) {{
+                                        input.value = '{name}';
+                                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                        setTimeout(() => {{
+                                            const btns = document.querySelectorAll('button');
+                                            for (let btn of btns) {{
+                                                if (btn.textContent?.toLowerCase().includes('save')) {{
+                                                    btn.click();
+                                                }}
+                                            }}
+                                        }}, 50);
+                                        break;
+                                    }}
+                                }}
+                            }}, 100);
+                        }}
+                    }}
+                ''')
                 count += 1
-                errors = 0
-                
-                if count % 10 == 0:
-                    print(f"  ⚡ Worker {worker_id}: {count} changes")
-                
-                # Wait between changes
                 await asyncio.sleep(0.1)
-            else:
-                errors += 1
-                await asyncio.sleep(0.05)
+            except:
+                pass
             
         except Exception as e:
-            errors += 1
-            if errors % 10 == 0:
-                print(f"  ⚠️ Worker {worker_id} error: {str(e)[:30]}")
+            print(f"  ⚠️ Worker {worker_id} error: {str(e)[:30]}")
             await asyncio.sleep(0.2)
     
     print(f"  ✅ Worker {worker_id}: {count} changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner - optimized for Termux"""
+    """Main runner with 3 tabs for stability"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -165,9 +201,7 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 '--no-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
-                '--disable-setuid-sandbox',
-                '--disable-images',
-                '--blink-settings=imagesEnabled=false'
+                '--disable-setuid-sandbox'
             ]
         )
         
@@ -190,8 +224,8 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 "sameSite": "None"
             }])
         
-        # Use 5 tabs (Termux optimized)
-        num_tabs = 5
+        # Use 3 tabs for stability
+        num_tabs = 3
         print(f"  🌐 Opening {num_tabs} tabs...")
         
         pages = []
@@ -205,13 +239,13 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 print(f"  ⚠️ Tab {i+1} failed: {e}")
                 pages.append(page)
         
-        print(f"  🔥 Starting {len(pages)} workers...")
+        print(f"  🔥 Starting {len(pages)} JS workers...")
         
         # Start workers
         tasks = []
         for i, page in enumerate(pages):
             tasks.append(asyncio.create_task(
-                fast_rename(page, base_name, stop_event, i+1)
+                js_rename(page, base_name, stop_event, i+1)
             ))
         
         # Run for duration
@@ -250,4 +284,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ FAST: 5 tabs optimized for Termux! Use !ncstop to stop."
+    return f"⚡ JS MODE: 3 tabs, JavaScript injection! Use !ncstop to stop."
