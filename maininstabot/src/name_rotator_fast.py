@@ -1,4 +1,4 @@
-"""FINAL WORKING - Using EXACT selectors from browser console"""
+"""FIXED PLAYWRIGHT - Bypass overlay with JavaScript click"""
 import asyncio
 import random
 import re
@@ -33,12 +33,28 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
+async def js_click(page, selector):
+    """Click using JavaScript - bypasses overlays"""
+    try:
+        await page.evaluate(f"""
+            (() => {{
+                const el = document.querySelector('{selector}');
+                if (el) {{
+                    el.click();
+                    return true;
+                }}
+                return false;
+            }})()
+        """)
+        return True
+    except:
+        return False
+
 async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """Worker using EXACT selectors from browser"""
+    """Worker using JavaScript clicks to bypass overlays"""
     count = 0
-    print(f"  ⚡ Worker {worker_id} started (EXACT SELECTORS)")
+    print(f"  ⚡ Worker {worker_id} started (JS CLICK)")
     
-    # Wait for page
     try:
         await page.wait_for_load_state('domcontentloaded', timeout=10000)
     except:
@@ -50,72 +66,101 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
             
-            # ---- STEP 1: Click on group name (div[role="button"]) ----
+            # ---- STEP 1: Click group name using JS ----
             clicked = False
             
-            # Click the group name header
+            # Try JavaScript click on div[role="button"]
             try:
-                header = page.locator('div[role="button"]').first
-                # Find the one with group name text
-                if await header.count() > 0:
-                    await header.click()
-                    await asyncio.sleep(0.2)
+                result = await page.evaluate("""
+                    (() => {
+                        const els = document.querySelectorAll('div[role="button"]');
+                        for (let el of els) {
+                            if (el.textContent && el.textContent.includes('MASTI KHOR')) {
+                                el.click();
+                                return true;
+                            }
+                        }
+                        return false;
+                    })()
+                """)
+                if result:
                     clicked = True
-            except Exception as e:
-                print(f"  ⚠️ Worker {worker_id}: Header click error: {e}")
-            
-            # If header click didn't work, use info panel
-            if not clicked:
-                try:
-                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
-                    if await info_btn.count() > 0:
-                        await info_btn.click()
-                        await asyncio.sleep(0.2)
-                        rename_btn = page.locator('button:has-text("Change name")').first
-                        if await rename_btn.count() > 0:
-                            await rename_btn.click()
-                            await asyncio.sleep(0.2)
-                            clicked = True
-                except Exception as e:
-                    print(f"  ⚠️ Worker {worker_id}: Info panel error: {e}")
-            
-            if not clicked:
-                await asyncio.sleep(0.1)
-                continue
-            
-            # ---- STEP 2: Find input field ----
-            input_field = None
-            try:
-                input_field = page.locator('input[aria-label="Group name"]').first
-                if await input_field.count() == 0:
-                    input_field = page.locator('[role="dialog"] input[type="text"]').first
-                if await input_field.count() == 0:
-                    input_field = page.locator('input').first
+                    await asyncio.sleep(0.15)
             except:
                 pass
             
-            if not input_field or await input_field.count() == 0:
-                await asyncio.sleep(0.05)
-                continue
-            
-            # ---- STEP 3: Fill name ----
-            try:
-                await input_field.fill(name)
-            except:
+            # If that fails, try info panel
+            if not clicked:
                 try:
-                    await input_field.click()
-                    await input_field.fill(name)
+                    await page.evaluate("""
+                        (() => {
+                            const el = document.querySelector('svg[aria-label="Conversation information"]');
+                            if (el) {
+                                el.closest('div[role="button"]')?.click();
+                                return true;
+                            }
+                            return false;
+                        })()
+                    """)
+                    await asyncio.sleep(0.15)
+                    
+                    # Click rename button
+                    await page.evaluate("""
+                        (() => {
+                            const btns = document.querySelectorAll('button, div[role="button"]');
+                            for (let btn of btns) {
+                                if (btn.textContent && btn.textContent.includes('Change name')) {
+                                    btn.click();
+                                    return true;
+                                }
+                            }
+                            return false;
+                        })()
+                    """)
+                    await asyncio.sleep(0.15)
+                    clicked = True
                 except:
                     pass
             
-            await asyncio.sleep(0.05)
+            if not clicked:
+                await asyncio.sleep(0.05)
+                continue
             
-            # ---- STEP 4: Click Save ----
+            # ---- STEP 2: Find and fill input using JS ----
+            try:
+                await page.evaluate(f"""
+                    (() => {{
+                        const inputs = document.querySelectorAll('input');
+                        for (let inp of inputs) {{
+                            if (inp.getAttribute('aria-label') === 'Group name') {{
+                                inp.value = '{name}';
+                                inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                return true;
+                            }}
+                        }}
+                        return false;
+                    }})()
+                """)
+                await asyncio.sleep(0.05)
+            except:
+                pass
+            
+            # ---- STEP 3: Click Save using JS ----
             saved = False
             try:
-                save_btn = page.locator('button:has-text("Save")').first
-                if await save_btn.count() > 0:
-                    await save_btn.click()
+                result = await page.evaluate("""
+                    (() => {
+                        const btns = document.querySelectorAll('button, div[role="button"]');
+                        for (let btn of btns) {
+                            if (btn.textContent && btn.textContent.includes('Save')) {
+                                btn.click();
+                                return true;
+                            }
+                        }
+                        return false;
+                    })()
+                """)
+                if result:
                     saved = True
             except:
                 pass
@@ -135,7 +180,7 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
     print(f"  ✅ Worker {worker_id}: {count} changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner with 3 tabs"""
+    """Main runner with 3 tabs and JS clicks"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -152,7 +197,6 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         
-        # Load session
         load_dotenv()
         session_id = os.getenv("SESSION_ID")
         if session_id:
@@ -166,7 +210,6 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 "sameSite": "None"
             }])
         
-        # Use 3 tabs
         num_tabs = 3
         print(f"  🌐 Opening {num_tabs} tabs...")
         
@@ -181,22 +224,18 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 print(f"  ⚠️ Tab {i+1} failed: {e}")
                 pages.append(page)
         
-        print(f"  🔥 Starting {len(pages)} workers (EXACT SELECTORS)...")
+        print(f"  🔥 Starting {len(pages)} workers (JS CLICK)...")
         
-        # Start workers
         tasks = []
         for i, page in enumerate(pages):
             tasks.append(asyncio.create_task(
                 rename_worker(page, base_name, stop_event, i+1)
             ))
         
-        # Run for duration
         await asyncio.sleep(duration)
         stop_event.set()
         
-        # Wait for workers
         await asyncio.gather(*tasks, return_exceptions=True)
-        
         await browser.close()
 
 def start(query: str, thread_id: str, cl=None) -> str:
@@ -226,4 +265,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ EXACT SELECTORS: 3 tabs! Use !ncstop to stop."
+    return f"⚡ JS CLICK: 3 tabs, bypass overlay! Use !ncstop to stop."
