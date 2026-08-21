@@ -1,4 +1,4 @@
-"""ULTRA FAST - Pre-cache elements, 100+ changes/sec!"""
+"""FINAL WORKING - Proper waits, single tab, ULTRA FAST!"""
 import asyncio
 import random
 import re
@@ -33,91 +33,123 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-async def ultra_fast_rename(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """ULTRA FAST - Pre-cache all elements!"""
+async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
+    """FINAL WORKING - Proper waits!"""
     count = 0
-    print(f"  ⚡ Worker {worker_id} started (ULTRA FAST)")
+    print(f"  ⚡ Worker {worker_id} started (FINAL)")
     
-    # Wait for page
     try:
         await page.wait_for_load_state('domcontentloaded', timeout=5000)
     except:
         pass
-    
-    # PRE-CACHE elements for speed
-    try:
-        # Wait for header to be available
-        await page.wait_for_selector('div[role="button"]', timeout=3000)
-    except:
-        pass
-    
-    # Get references to elements (they won't change)
-    header_selector = 'div[role="button"]'
-    input_selector = 'input[aria-label="Group name"]'
-    save_selector = 'button:has-text("Save")'
     
     while not stop_event.is_set():
         try:
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
             
-            # ==== STEP 1: Click header (NO WAIT) ====
+            # ---- STEP 1: Click on group name ----
+            clicked = False
+            
+            # Method 1: Click div[role="button"]
             try:
-                await page.click(header_selector, force=True, no_wait_after=True)
+                header = page.locator('div[role="button"]').first
+                if await header.count() > 0:
+                    await header.click(force=True)
+                    await asyncio.sleep(0.05)  # Wait for menu to open
+                    clicked = True
             except:
-                # Fallback: use JS click
-                await page.evaluate(f"""
-                    (() => {{
-                        const el = document.querySelector('div[role="button"]');
-                        if (el) el.click();
-                    }})()
-                """)
+                pass
             
-            # ==== STEP 2: Fill input (NO WAIT) ====
+            # Method 2: Info panel
+            if not clicked:
+                try:
+                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
+                    if await info_btn.count() > 0:
+                        await info_btn.click(force=True)
+                        await asyncio.sleep(0.05)
+                        rename_btn = page.locator('button:has-text("Change name")').first
+                        if await rename_btn.count() > 0:
+                            await rename_btn.click(force=True)
+                            await asyncio.sleep(0.05)
+                            clicked = True
+                except:
+                    pass
+            
+            if not clicked:
+                await asyncio.sleep(0.01)
+                continue
+            
+            # ---- STEP 2: Find input field ----
+            input_field = None
+            selectors = [
+                'input[aria-label="Group name"]',
+                '[role="dialog"] input[type="text"]',
+                'input[name="change-group-name"]',
+                'input[placeholder*="Group name"]',
+                'input'
+            ]
+            
+            for selector in selectors:
+                try:
+                    field = page.locator(selector).first
+                    if await field.count() > 0 and await field.is_visible():
+                        input_field = field
+                        break
+                except:
+                    continue
+            
+            if not input_field:
+                await asyncio.sleep(0.01)
+                continue
+            
+            # ---- STEP 3: Fill name ----
             try:
-                await page.fill(input_selector, name, timeout=50)
+                await input_field.fill(name)
             except:
-                await page.evaluate(f"""
-                    (() => {{
-                        const el = document.querySelector('input[aria-label="Group name"]');
-                        if (el) {{
-                            el.value = '{name}';
-                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        }}
-                    }})()
-                """)
+                try:
+                    await input_field.click(force=True)
+                    await input_field.fill(name)
+                except:
+                    pass
             
-            # ==== STEP 3: Click Save (NO WAIT) ====
-            try:
-                await page.click(save_selector, force=True, no_wait_after=True)
-            except:
-                await page.evaluate("""
-                    (() => {
-                        const btns = document.querySelectorAll('button');
-                        for (let btn of btns) {
-                            if (btn.textContent && btn.textContent.includes('Save')) {
-                                btn.click();
-                                break;
-                            }
-                        }
-                    })()
-                """)
+            await asyncio.sleep(0.02)  # Wait for input to register
             
-            count += 1
+            # ---- STEP 4: Click Save with proper wait ----
+            saved = False
+            save_selectors = [
+                'button:has-text("Save")',
+                '[role="dialog"] button:has-text("Save")',
+                'div[role="button"]:has-text("Save")',
+                'button[type="submit"]'
+            ]
             
-            if count % 50 == 0:
-                print(f"  ⚡ Worker {worker_id}: {count} changes")
+            for selector in save_selectors:
+                try:
+                    save_btn = page.locator(selector).first
+                    if await save_btn.count() > 0 and await save_btn.is_visible():
+                        await save_btn.click(force=True)
+                        await asyncio.sleep(0.02)  # Wait for save to complete
+                        saved = True
+                        break
+                except:
+                    continue
             
-            # MINIMAL DELAY - 0.5ms (2000 changes/sec theoretical)
-            await asyncio.sleep(0.0005)
+            if saved:
+                count += 1
+                if count % 10 == 0:
+                    print(f"  ⚡ Worker {worker_id}: {count} changes")
+                await asyncio.sleep(0.01)  # 10ms delay
+            else:
+                await asyncio.sleep(0.01)
             
         except Exception as e:
-            await asyncio.sleep(0.0005)
+            await asyncio.sleep(0.01)
     
     print(f"  ✅ Worker {worker_id}: {count} changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Single tab - ULTRA FAST"""
+    """Main runner"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -125,16 +157,12 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 '--no-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
-                '--disable-setuid-sandbox',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu-compositing',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process'
+                '--disable-setuid-sandbox'
             ]
         )
         
         context = await browser.new_context(
-            viewport={'width': 800, 'height': 600},
+            viewport={'width': 1280, 'height': 720},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         
@@ -154,19 +182,15 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
         print(f"  🌐 Opening tab...")
         
         page = await context.new_page()
-        await page.goto(dm_url, wait_until='domcontentloaded', timeout=20000)
-        print(f"  ✅ Tab loaded")
+        try:
+            await page.goto(dm_url, wait_until='domcontentloaded', timeout=20000)
+            print(f"  ✅ Tab loaded")
+        except Exception as e:
+            print(f"  ⚠️ Tab failed: {e}")
         
-        print(f"  🔥 Starting ULTRA FAST worker...")
+        print(f"  🔥 Starting worker (FINAL)...")
+        await rename_worker(page, base_name, stop_event, 1)
         
-        # Run for duration then stop
-        task = asyncio.create_task(ultra_fast_rename(page, base_name, stop_event, 1))
-        
-        # Auto-stop after duration
-        await asyncio.sleep(duration)
-        stop_event.set()
-        
-        await task
         await browser.close()
 
 def start(query: str, thread_id: str, cl=None) -> str:
@@ -196,4 +220,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ ULTRA FAST: 0.5ms delay, PRE-CACHED elements! Use !ncstop to stop."
+    return f"⚡ FINAL: Single tab with proper waits! Use !ncstop to stop."
