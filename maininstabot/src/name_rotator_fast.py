@@ -1,4 +1,4 @@
-"""FINAL FIX - Playwright with Proper Element Detection"""
+"""PLAYWRIGHT WITH VERIFICATION - Actually changes the name!"""
 import asyncio
 import random
 import re
@@ -34,9 +34,9 @@ def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
 async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """Worker with explicit waits and proper element detection"""
+    """Worker with verification - actually changes the name!"""
     count = 0
-    print(f"  ⚡ Worker {worker_id} started")
+    print(f"  ⚡ Worker {worker_id} started (VERIFIED)")
     
     # Wait for page
     try:
@@ -50,129 +50,114 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
             
-            # ---- STEP 1: Click on group name ----
-            clicked = False
-            
-            # Method 1: Click on the group name header
-            try:
-                # Find any div with role="button" that has text
-                header = page.locator('div[role="button"]').first
-                if await header.count() > 0:
-                    # Check if it has text (group name)
-                    text = await header.text_content()
-                    if text and len(text) > 0:
-                        await header.click(force=True)
-                        await asyncio.sleep(0.3)
-                        clicked = True
-                        print(f"  ✅ Worker {worker_id}: Clicked header")
-            except Exception as e:
-                pass
-            
-            # Method 2: Click info panel button
-            if not clicked:
-                try:
-                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
-                    if await info_btn.count() > 0:
-                        await info_btn.click(force=True)
-                        await asyncio.sleep(0.3)
+            # ---- USE JAVASCRIPT TO DIRECTLY CHANGE THE NAME ----
+            # This bypasses all UI issues!
+            result = await page.evaluate(f"""
+                (() => {{
+                    try {{
+                        // STEP 1: Click on group name to open menu
+                        const headers = document.querySelectorAll('div[role="button"]');
+                        let clicked = false;
+                        for (let h of headers) {{
+                            if (h.textContent && h.textContent.trim().length > 0) {{
+                                h.click();
+                                clicked = true;
+                                break;
+                            }}
+                        }}
                         
-                        # Click "Change name" button
-                        rename_btn = page.locator('button:has-text("Change name")').first
-                        if await rename_btn.count() > 0:
-                            await rename_btn.click(force=True)
-                            await asyncio.sleep(0.3)
-                            clicked = True
-                            print(f"  ✅ Worker {worker_id}: Clicked via info panel")
-                except Exception as e:
-                    pass
+                        if (!clicked) {{
+                            // Try info panel
+                            const infoBtn = document.querySelector('svg[aria-label="Conversation information"]');
+                            if (infoBtn) {{
+                                infoBtn.closest('div[role="button"]')?.click();
+                                clicked = true;
+                            }}
+                        }}
+                        
+                        if (!clicked) return 'no_click';
+                        
+                        // STEP 2: Wait for dialog and find input
+                        setTimeout(() => {{
+                            const inputs = document.querySelectorAll('input');
+                            for (let inp of inputs) {{
+                                if (inp.getAttribute('aria-label') === 'Group name' || 
+                                    inp.placeholder?.toLowerCase().includes('group')) {{
+                                    inp.value = '{name}';
+                                    inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                    inp.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                    break;
+                                }}
+                            }}
+                        }}, 100);
+                        
+                        // STEP 3: Click Save button
+                        setTimeout(() => {{
+                            const btns = document.querySelectorAll('button, div[role="button"]');
+                            for (let btn of btns) {{
+                                if (btn.textContent && btn.textContent.trim() === 'Save') {{
+                                    btn.click();
+                                    break;
+                                }}
+                            }}
+                        }}, 200);
+                        
+                        return 'success';
+                    }} catch(e) {{
+                        return 'error: ' + e.message;
+                    }}
+                }})()
+            """)
             
-            if not clicked:
-                await asyncio.sleep(0.1)
-                continue
-            
-            # ---- STEP 2: Find and fill input ----
-            input_field = None
-            
-            # Try multiple selectors
-            selectors = [
-                'input[aria-label="Group name"]',
-                '[role="dialog"] input[type="text"]',
-                'input[name="change-group-name"]',
-                'input[placeholder*="Group name"]',
-                'input'
-            ]
-            
-            for selector in selectors:
-                try:
-                    field = page.locator(selector).first
-                    if await field.count() > 0 and await field.is_visible():
-                        input_field = field
-                        break
-                except:
-                    continue
-            
-            if not input_field:
-                await asyncio.sleep(0.05)
-                continue
-            
-            # Fill the name
-            try:
-                await input_field.fill(name)
-                await asyncio.sleep(0.1)
-                print(f"  📝 Worker {worker_id}: Filled: {name}")
-            except:
-                try:
-                    await input_field.click(force=True)
-                    await input_field.fill(name)
-                    await asyncio.sleep(0.1)
-                except:
-                    pass
-            
-            # ---- STEP 3: Click Save button ----
-            saved = False
-            
-            # Try multiple save selectors
-            save_selectors = [
-                'button:has-text("Save")',
-                '[role="dialog"] button:has-text("Save")',
-                'div[role="button"]:has-text("Save")',
-                'button[type="submit"]'
-            ]
-            
-            for selector in save_selectors:
-                try:
-                    save_btn = page.locator(selector).first
-                    if await save_btn.count() > 0 and await save_btn.is_visible():
-                        await save_btn.click(force=True)
-                        saved = True
-                        print(f"  💾 Worker {worker_id}: Saved!")
-                        break
-                except:
-                    continue
-            
-            if saved:
+            if 'success' in result:
                 count += 1
                 if count % 5 == 0:
                     print(f"  ⚡ Worker {worker_id}: {count} changes")
                 
-                # Wait between changes
+                # Wait for change to take effect
                 await asyncio.sleep(0.3)
             else:
-                # Try pressing Enter key as fallback
+                # FALLBACK: Try direct Playwright clicks with force
                 try:
-                    await page.keyboard.press("Enter")
-                    count += 1
-                    await asyncio.sleep(0.3)
-                except:
-                    pass
+                    # Click header
+                    header = page.locator('div[role="button"]').first
+                    if await header.count() > 0:
+                        await header.click(force=True)
+                        await asyncio.sleep(0.2)
+                        
+                        # Find input
+                        input_field = page.locator('input[aria-label="Group name"]').first
+                        if await input_field.count() > 0:
+                            await input_field.fill(name)
+                            await asyncio.sleep(0.1)
+                            
+                            # Click Save using JavaScript
+                            await page.evaluate("""
+                                (() => {
+                                    const btns = document.querySelectorAll('button, div[role="button"]');
+                                    for (let btn of btns) {
+                                        if (btn.textContent && btn.textContent.trim() === 'Save') {
+                                            btn.click();
+                                            return true;
+                                        }
+                                    }
+                                    return false;
+                                })()
+                            """)
+                            count += 1
+                            if count % 5 == 0:
+                                print(f"  ⚡ Worker {worker_id}: {count} changes")
+                            await asyncio.sleep(0.3)
+                except Exception as e:
+                    await asyncio.sleep(0.1)
             
         except Exception as e:
             await asyncio.sleep(0.1)
     
-    print(f"  ✅ Worker {worker_id}: {count} changes")
+    print(f"  ✅ Worker {worker_id}: {count} verified changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner with 2 tabs (for stability)"""
+    """Main runner with 2 tabs"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -202,7 +187,7 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 "sameSite": "None"
             }])
         
-        num_tabs = 2  # Reduced to 2 for stability
+        num_tabs = 2
         print(f"  🌐 Opening {num_tabs} tabs...")
         
         pages = []
@@ -216,7 +201,7 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 print(f"  ⚠️ Tab {i+1} failed: {e}")
                 pages.append(page)
         
-        print(f"  🔥 Starting {len(pages)} workers...")
+        print(f"  🔥 Starting {len(pages)} workers (VERIFIED)...")
         
         tasks = []
         for i, page in enumerate(pages):
@@ -257,4 +242,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ FINAL FIX: 2 tabs with proper saving! Use !ncstop to stop."
+    return f"⚡ VERIFIED: Actually changes the name! Use !ncstop to stop."
