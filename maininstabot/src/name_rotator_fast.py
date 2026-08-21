@@ -1,4 +1,4 @@
-"""ORIGINAL WORKING - SPEED BOOSTED!"""
+"""SINGLE TAB - ULTRA FAST! No interference!"""
 import asyncio
 import random
 import re
@@ -47,7 +47,7 @@ async def ensure_info_panel_open(page):
             loc = page.locator(sel)
             if await loc.count():
                 await loc.first.click(force=True)
-                await asyncio.sleep(0.01)  # FAST
+                await asyncio.sleep(0.005)
                 return True
         except Exception:
             continue
@@ -67,7 +67,7 @@ async def open_rename_dialog(page):
             btn = page.locator(sel)
             if await btn.count():
                 await btn.first.click(force=True)
-                await asyncio.sleep(0.01)  # FAST
+                await asyncio.sleep(0.005)
                 return True
         except Exception:
             continue
@@ -86,7 +86,7 @@ async def get_rename_controls(page):
         '[role="dialog"] div[role="button"]:has-text("Save")',
         'div[role="button"]:has-text("Save")'
     ]
-    for _ in range(3):
+    for _ in range(2):
         for inp_sel in input_selectors:
             try:
                 inp = page.locator(inp_sel)
@@ -97,17 +97,23 @@ async def get_rename_controls(page):
                             return inp.first, sv.first
             except Exception:
                 continue
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.005)
         await open_rename_dialog(page)
     return None, None
 
 async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """FAST VERSION - 10x speed boost!"""
+    """SINGLE TAB - ULTRA FAST!"""
     count = 0
-    print(f"  ⚡ Worker {worker_id} started (FAST MODE)")
+    print(f"  ⚡ Worker {worker_id} started (ULTRA FAST)")
     
     try:
         await page.wait_for_load_state('domcontentloaded', timeout=5000)
+    except:
+        pass
+    
+    # Pre-load elements to speed up
+    try:
+        await page.wait_for_selector('div[role="button"]', timeout=2000)
     except:
         pass
     
@@ -116,61 +122,69 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
             
-            # FAST: Open dialog
-            ok = await open_rename_dialog(page)
-            if not ok:
-                await ensure_info_panel_open(page)
+            # === FASTEST METHOD ===
+            # Click group name directly
+            try:
+                header = page.locator('div[role="button"]').first
+                if await header.count() > 0:
+                    await header.click(force=True, no_wait_after=True)
+                    await asyncio.sleep(0.005)
+                else:
+                    # Fallback to original method
+                    ok = await open_rename_dialog(page)
+                    if not ok:
+                        await ensure_info_panel_open(page)
+                        ok = await open_rename_dialog(page)
+                    if not ok:
+                        await asyncio.sleep(0.005)
+                        continue
+            except:
                 ok = await open_rename_dialog(page)
-            
-            if not ok:
-                await asyncio.sleep(0.01)
-                continue
-            
-            # FAST: Get controls
-            inp, save_btn = await get_rename_controls(page)
-            if not inp or not save_btn:
-                await asyncio.sleep(0.01)
-                continue
-            
-            # FAST: Fill name
-            try:
-                await inp.fill(name, timeout=500)
-            except Exception:
-                try:
-                    await inp.click(force=True)
-                    await inp.fill(name, timeout=500)
-                except Exception:
-                    pass
-            
-            await asyncio.sleep(0.005)  # 5ms
-            
-            # FAST: Check disabled
-            try:
-                disabled = await save_btn.get_attribute("aria-disabled")
-                if disabled == "true":
-                    await page.keyboard.press("Escape")
+                if not ok:
+                    await ensure_info_panel_open(page)
+                    ok = await open_rename_dialog(page)
+                if not ok:
                     await asyncio.sleep(0.005)
                     continue
-            except Exception:
+            
+            # Get input and save
+            inp, save_btn = await get_rename_controls(page)
+            if not inp or not save_btn:
+                await asyncio.sleep(0.005)
+                continue
+            
+            # Fill name - FAST
+            try:
+                await inp.fill(name, timeout=100)
+            except:
+                try:
+                    await inp.click(force=True)
+                    await inp.fill(name, timeout=100)
+                except:
+                    pass
+            
+            await asyncio.sleep(0.003)  # 3ms
+            
+            # Click Save - FAST
+            try:
+                await save_btn.click(force=True, no_wait_after=True)
+                count += 1
+            except:
                 pass
             
-            # FAST: Click Save
-            await save_btn.click(force=True)
-            count += 1
-            
-            if count % 20 == 0:  # Print less often
+            if count % 50 == 0:
                 print(f"  ⚡ Worker {worker_id}: {count} changes")
             
-            # FAST DELAY - 20ms (50 changes/sec)
-            await asyncio.sleep(0.02)  # 20ms
+            # MINIMAL DELAY - 5ms (200 changes/sec)
+            await asyncio.sleep(0.005)  # 5ms
             
         except Exception as e:
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.005)
     
     print(f"  ✅ Worker {worker_id}: {count} changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner with 3 tabs for more speed"""
+    """SINGLE TAB - No interference!"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -178,13 +192,15 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 '--no-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
-                '--disable-setuid-sandbox'
+                '--disable-setuid-sandbox',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu-compositing'
             ]
         )
         
         context = await browser.new_context(
             viewport={'width': 1280, 'height': 720},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         
         load_dotenv()
@@ -200,32 +216,21 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 "sameSite": "None"
             }])
         
-        num_tabs = 3  # More tabs = more speed
-        print(f"  🌐 Opening {num_tabs} tabs...")
+        # SINGLE TAB - No interference!
+        print(f"  🌐 Opening 1 tab...")
         
-        pages = []
-        for i in range(num_tabs):
-            page = await context.new_page()
-            try:
-                await page.goto(dm_url, wait_until='domcontentloaded', timeout=20000)
-                pages.append(page)
-                print(f"  ✅ Tab {i+1} loaded")
-            except Exception as e:
-                print(f"  ⚠️ Tab {i+1} failed: {e}")
-                pages.append(page)
+        page = await context.new_page()
+        try:
+            await page.goto(dm_url, wait_until='domcontentloaded', timeout=20000)
+            print(f"  ✅ Tab loaded")
+        except Exception as e:
+            print(f"  ⚠️ Tab failed: {e}")
         
-        print(f"  🔥 Starting {len(pages)} workers (FAST MODE)...")
+        print(f"  🔥 Starting worker (ULTRA FAST - SINGLE TAB)...")
         
-        tasks = []
-        for i, page in enumerate(pages):
-            tasks.append(asyncio.create_task(
-                rename_worker(page, base_name, stop_event, i+1)
-            ))
+        # Single worker - maximum speed without interference!
+        await rename_worker(page, base_name, stop_event, 1)
         
-        await asyncio.sleep(duration)
-        stop_event.set()
-        
-        await asyncio.gather(*tasks, return_exceptions=True)
         await browser.close()
 
 def start(query: str, thread_id: str, cl=None) -> str:
@@ -255,4 +260,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ FAST MODE: 3 tabs, 20ms delay! Use !ncstop to stop."
+    return f"⚡ ULTRA FAST: Single tab, 5ms delay! Use !ncstop to stop."
