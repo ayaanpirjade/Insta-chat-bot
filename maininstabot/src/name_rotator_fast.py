@@ -1,4 +1,4 @@
-"""PLAYWRIGHT with JavaScript Injection - Bypass UI issues!"""
+"""PLAYWRIGHT NAME ROTATOR - USING WORKING SELECTORS FROM ayaan_v17_ultra.py"""
 import asyncio
 import random
 import re
@@ -6,7 +6,7 @@ import time
 import threading
 import os
 from typing import Dict, Optional
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 from dotenv import load_dotenv
 
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
@@ -33,27 +33,88 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-async def js_rename(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """Rename using JavaScript injection - WORKS EVERY TIME!"""
+async def ensure_info_panel_open(page):
+    """OPEN INFO PANEL - WORKING SELECTORS"""
+    info_selectors = [
+        'svg[aria-label="Conversation information"]',
+        '[aria-label="Conversation information"]',
+        'button[aria-label*="Details"]',
+        'button:has-text("Info")',
+        'button:has-text("Details")',
+        'svg[aria-label*="Info"]',
+    ]
+    for sel in info_selectors:
+        try:
+            loc = page.locator(sel)
+            if await loc.count():
+                await loc.first.click(force=True)
+                await asyncio.sleep(0.02)
+                return True
+        except Exception:
+            continue
+    return False
+
+async def open_rename_dialog(page):
+    """OPEN RENAME DIALOG - WORKING SELECTORS"""
+    triggers = [
+        'div[aria-label="Change group name"][role="button"]',
+        'button:has-text("Change group name")',
+        'button:has-text("Change name")',
+        'text="Change group name"',
+        'text="Change name"',
+        'text="Edit group name"',
+    ]
+    for sel in triggers:
+        try:
+            btn = page.locator(sel)
+            if await btn.count():
+                await btn.first.click(force=True)
+                await asyncio.sleep(0.02)
+                return True
+        except Exception:
+            continue
+    return False
+
+async def get_rename_controls(page):
+    """GET INPUT AND SAVE BUTTON - WORKING SELECTORS"""
+    input_selectors = [
+        'input[aria-label="Group name"]',
+        'input[name="change-group-name"]',
+        '[role="dialog"] input[type="text"]',
+        'input[placeholder*="Group name"]',
+    ]
+    save_selectors = [
+        '[role="dialog"] button:has-text("Save")',
+        'button:has-text("Save")',
+        '[role="dialog"] div[role="button"]:has-text("Save")',
+        'div[role="button"]:has-text("Save")'
+    ]
+    for _ in range(4):
+        for inp_sel in input_selectors:
+            try:
+                inp = page.locator(inp_sel)
+                if await inp.count():
+                    for sv_sel in save_selectors:
+                        sv = page.locator(sv_sel)
+                        if await sv.count():
+                            return inp.first, sv.first
+            except Exception:
+                continue
+        await asyncio.sleep(0.02)
+        await open_rename_dialog(page)
+    return None, None
+
+async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
+    """WORKER USING WORKING SELECTORS"""
     count = 0
-    print(f"  ⚡ Worker {worker_id} ready (JS mode)")
+    errors = 0
+    used_names = set()
+    
+    print(f"  ⚡ Worker {worker_id} started (working selectors)")
     
     # Wait for page
     try:
         await page.wait_for_load_state('domcontentloaded', timeout=5000)
-    except:
-        pass
-    
-    # Try to find the group name
-    try:
-        # Get current group name
-        current_name = await page.evaluate('''
-            () => {
-                const header = document.querySelector('header h2');
-                return header ? header.textContent : null;
-            }
-        ''')
-        print(f"  📝 Worker {worker_id}: Current group: {current_name}")
     except:
         pass
     
@@ -62,138 +123,80 @@ async def js_rename(page, base_name: str, stop_event: threading.Event, worker_id
             # Generate name
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
+            if name in used_names:
+                name = f"{name} {random.randint(1,999)}"
+            used_names.add(name)
+            if len(used_names) > 100:
+                used_names.clear()
             
-            # ---- METHOD 1: JavaScript Injection ----
-            success = await page.evaluate(f'''
-                () => {{
-                    try {{
-                        // Find the group name header
-                        const header = document.querySelector('header h2, header div[role="button"]');
-                        if (header) {{
-                            header.click();
-                            return 'clicked_header';
-                        }}
-                        return 'no_header';
-                    }} catch(e) {{
-                        return 'error: ' + e.message;
-                    }}
-                }}
-            ''')
+            # STEP 1: Open rename dialog
+            ok = await open_rename_dialog(page)
+            if not ok:
+                await ensure_info_panel_open(page)
+                ok = await open_rename_dialog(page)
             
-            await asyncio.sleep(0.1)
-            
-            # ---- METHOD 2: Find input via JS ----
-            if success == 'clicked_header':
-                # Wait for dialog
+            if not ok:
+                errors += 1
+                if errors % 5 == 0:
+                    print(f"  ⚠️ Worker {worker_id}: Can't open dialog")
                 await asyncio.sleep(0.1)
-                
-                # Find and fill input
-                filled = await page.evaluate(f'''
-                    () => {{
-                        try {{
-                            // Find input
-                            const inputs = document.querySelectorAll('input');
-                            let targetInput = null;
-                            for (let input of inputs) {{
-                                if (input.getAttribute('aria-label') === 'Group name' || 
-                                    input.getAttribute('placeholder')?.toLowerCase().includes('group') ||
-                                    input.getAttribute('name') === 'change-group-name') {{
-                                    targetInput = input;
-                                    break;
-                                }}
-                            }}
-                            
-                            if (targetInput) {{
-                                targetInput.value = '';
-                                targetInput.value = '{name}';
-                                // Trigger input event
-                                targetInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                                return 'filled';
-                            }}
-                            return 'no_input';
-                        }} catch(e) {{
-                            return 'error: ' + e.message;
-                        }}
-                    }}
-                ''')
-                
+                continue
+            
+            # STEP 2: Get input and save button
+            inp, save_btn = await get_rename_controls(page)
+            if not inp or not save_btn:
+                await ensure_info_panel_open(page)
+                await open_rename_dialog(page)
+                inp, save_btn = await get_rename_controls(page)
+            
+            if not inp or not save_btn:
+                errors += 1
                 await asyncio.sleep(0.05)
-                
-                # Save via JS
-                if filled == 'filled':
-                    saved = await page.evaluate(f'''
-                        () => {{
-                            try {{
-                                // Find save button
-                                const buttons = document.querySelectorAll('button, div[role="button"]');
-                                for (let btn of buttons) {{
-                                    if (btn.textContent?.toLowerCase().includes('save')) {{
-                                        btn.click();
-                                        return 'saved';
-                                    }}
-                                }}
-                                return 'no_save';
-                            }} catch(e) {{
-                                return 'error: ' + e.message;
-                            }}
-                        }}
-                    ''')
-                    
-                    if saved == 'saved':
-                        count += 1
-                        if count % 5 == 0:
-                            print(f"  ⚡ Worker {worker_id}: {count} changes")
-                        
-                        # Wait between changes
-                        await asyncio.sleep(0.05)
-                        continue
+                continue
             
-            # If JS injection failed, try fallback method
-            print(f"  ⚠️ Worker {worker_id}: JS method failed, trying fallback...")
-            
-            # ---- FALLBACK: Direct DOM manipulation ----
+            # STEP 3: Fill name
             try:
-                await page.evaluate(f'''
-                    () => {{
-                        // Direct DOM manipulation
-                        const header = document.querySelector('header h2, header div[role="button"]');
-                        if (header) {{
-                            header.click();
-                            setTimeout(() => {{
-                                const inputs = document.querySelectorAll('input');
-                                for (let input of inputs) {{
-                                    if (input.getAttribute('aria-label') === 'Group name' || 
-                                        input.getAttribute('placeholder')?.toLowerCase().includes('group')) {{
-                                        input.value = '{name}';
-                                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                                        setTimeout(() => {{
-                                            const btns = document.querySelectorAll('button');
-                                            for (let btn of btns) {{
-                                                if (btn.textContent?.toLowerCase().includes('save')) {{
-                                                    btn.click();
-                                                }}
-                                            }}
-                                        }}, 50);
-                                        break;
-                                    }}
-                                }}
-                            }}, 100);
-                        }}
-                    }}
-                ''')
-                count += 1
-                await asyncio.sleep(0.1)
-            except:
+                await inp.fill(name, timeout=1000)
+            except Exception:
+                try:
+                    await inp.click(force=True)
+                    await inp.fill(name, timeout=1000)
+                except Exception:
+                    pass
+            
+            await asyncio.sleep(0.02)
+            
+            # STEP 4: Click Save
+            try:
+                disabled = await save_btn.get_attribute("aria-disabled")
+                if disabled == "true":
+                    await page.keyboard.press("Escape")
+                    await asyncio.sleep(0.01)
+                    continue
+            except Exception:
                 pass
             
+            # Click save
+            await save_btn.click(force=True)
+            count += 1
+            errors = 0
+            
+            if count % 10 == 0:
+                print(f"  ⚡ Worker {worker_id}: {count} changes")
+            
+            # ULTRA-FAST DELAY (2ms)
+            await asyncio.sleep(0.002)
+            
         except Exception as e:
-            print(f"  ⚠️ Worker {worker_id} error: {str(e)[:30]}")
-            await asyncio.sleep(0.2)
+            errors += 1
+            if errors % 10 == 0:
+                print(f"  ⚠️ Worker {worker_id} error: {str(e)[:30]}")
+            await asyncio.sleep(0.05)
     
     print(f"  ✅ Worker {worker_id}: {count} changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner with 3 tabs for stability"""
+    """Main runner with 5 tabs using working selectors"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -206,7 +209,9 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
         )
         
         context = await browser.new_context(
-            viewport={'width': 800, 'height': 600},
+            locale="en-US",
+            extra_http_headers={"Referer": "https://www.instagram.com/"},
+            viewport={'width': 1280, 'height': 720},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         
@@ -224,28 +229,28 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 "sameSite": "None"
             }])
         
-        # Use 3 tabs for stability
-        num_tabs = 3
+        # Use 5 tabs for speed
+        num_tabs = 5
         print(f"  🌐 Opening {num_tabs} tabs...")
         
         pages = []
         for i in range(num_tabs):
             page = await context.new_page()
             try:
-                await page.goto(dm_url, wait_until='domcontentloaded', timeout=15000)
+                await page.goto(dm_url, wait_until='domcontentloaded', timeout=30000)
                 pages.append(page)
                 print(f"  ✅ Tab {i+1} loaded")
             except Exception as e:
                 print(f"  ⚠️ Tab {i+1} failed: {e}")
                 pages.append(page)
         
-        print(f"  🔥 Starting {len(pages)} JS workers...")
+        print(f"  🔥 Starting {len(pages)} workers (WORKING SELECTORS)...")
         
         # Start workers
         tasks = []
         for i, page in enumerate(pages):
             tasks.append(asyncio.create_task(
-                js_rename(page, base_name, stop_event, i+1)
+                rename_worker(page, base_name, stop_event, i+1)
             ))
         
         # Run for duration
@@ -284,4 +289,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ JS MODE: 3 tabs, JavaScript injection! Use !ncstop to stop."
+    return f"⚡ WORKING SELECTORS: 5 tabs, 2ms delay! Use !ncstop to stop."
