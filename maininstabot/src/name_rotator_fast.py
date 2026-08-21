@@ -160,7 +160,7 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
     """Main runner with 2 tabs"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
-            headless=True,
+            headless=False,
             args=[
                 '--no-sandbox',
                 '--disable-gpu',
