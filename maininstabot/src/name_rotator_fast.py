@@ -1,4 +1,4 @@
-"""PLAYWRIGHT NAME ROTATOR - USING WORKING SELECTORS FROM ayaan_v17_ultra.py"""
+"""FINAL WORKING - Using EXACT selectors from browser console"""
 import asyncio
 import random
 import re
@@ -6,7 +6,7 @@ import time
 import threading
 import os
 from typing import Dict, Optional
-from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
@@ -33,88 +33,14 @@ def stop(thread_id: str) -> bool:
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-async def ensure_info_panel_open(page):
-    """OPEN INFO PANEL - WORKING SELECTORS"""
-    info_selectors = [
-        'svg[aria-label="Conversation information"]',
-        '[aria-label="Conversation information"]',
-        'button[aria-label*="Details"]',
-        'button:has-text("Info")',
-        'button:has-text("Details")',
-        'svg[aria-label*="Info"]',
-    ]
-    for sel in info_selectors:
-        try:
-            loc = page.locator(sel)
-            if await loc.count():
-                await loc.first.click(force=True)
-                await asyncio.sleep(0.02)
-                return True
-        except Exception:
-            continue
-    return False
-
-async def open_rename_dialog(page):
-    """OPEN RENAME DIALOG - WORKING SELECTORS"""
-    triggers = [
-        'div[aria-label="Change group name"][role="button"]',
-        'button:has-text("Change group name")',
-        'button:has-text("Change name")',
-        'text="Change group name"',
-        'text="Change name"',
-        'text="Edit group name"',
-    ]
-    for sel in triggers:
-        try:
-            btn = page.locator(sel)
-            if await btn.count():
-                await btn.first.click(force=True)
-                await asyncio.sleep(0.02)
-                return True
-        except Exception:
-            continue
-    return False
-
-async def get_rename_controls(page):
-    """GET INPUT AND SAVE BUTTON - WORKING SELECTORS"""
-    input_selectors = [
-        'input[aria-label="Group name"]',
-        'input[name="change-group-name"]',
-        '[role="dialog"] input[type="text"]',
-        'input[placeholder*="Group name"]',
-    ]
-    save_selectors = [
-        '[role="dialog"] button:has-text("Save")',
-        'button:has-text("Save")',
-        '[role="dialog"] div[role="button"]:has-text("Save")',
-        'div[role="button"]:has-text("Save")'
-    ]
-    for _ in range(4):
-        for inp_sel in input_selectors:
-            try:
-                inp = page.locator(inp_sel)
-                if await inp.count():
-                    for sv_sel in save_selectors:
-                        sv = page.locator(sv_sel)
-                        if await sv.count():
-                            return inp.first, sv.first
-            except Exception:
-                continue
-        await asyncio.sleep(0.02)
-        await open_rename_dialog(page)
-    return None, None
-
 async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """WORKER USING WORKING SELECTORS"""
+    """Worker using EXACT selectors from browser"""
     count = 0
-    errors = 0
-    used_names = set()
-    
-    print(f"  ⚡ Worker {worker_id} started (working selectors)")
+    print(f"  ⚡ Worker {worker_id} started (EXACT SELECTORS)")
     
     # Wait for page
     try:
-        await page.wait_for_load_state('domcontentloaded', timeout=5000)
+        await page.wait_for_load_state('domcontentloaded', timeout=10000)
     except:
         pass
     
@@ -123,80 +49,93 @@ async def rename_worker(page, base_name: str, stop_event: threading.Event, worke
             # Generate name
             emoji = random.choice(EMOJIS)
             name = f"{base_name[:95]} {emoji}"
-            if name in used_names:
-                name = f"{name} {random.randint(1,999)}"
-            used_names.add(name)
-            if len(used_names) > 100:
-                used_names.clear()
             
-            # STEP 1: Open rename dialog
-            ok = await open_rename_dialog(page)
-            if not ok:
-                await ensure_info_panel_open(page)
-                ok = await open_rename_dialog(page)
+            # ---- STEP 1: Click on group name (div[role="button"]) ----
+            clicked = False
             
-            if not ok:
-                errors += 1
-                if errors % 5 == 0:
-                    print(f"  ⚠️ Worker {worker_id}: Can't open dialog")
+            # Click the group name header
+            try:
+                header = page.locator('div[role="button"]').first
+                # Find the one with group name text
+                if await header.count() > 0:
+                    await header.click()
+                    await asyncio.sleep(0.2)
+                    clicked = True
+            except Exception as e:
+                print(f"  ⚠️ Worker {worker_id}: Header click error: {e}")
+            
+            # If header click didn't work, use info panel
+            if not clicked:
+                try:
+                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
+                    if await info_btn.count() > 0:
+                        await info_btn.click()
+                        await asyncio.sleep(0.2)
+                        rename_btn = page.locator('button:has-text("Change name")').first
+                        if await rename_btn.count() > 0:
+                            await rename_btn.click()
+                            await asyncio.sleep(0.2)
+                            clicked = True
+                except Exception as e:
+                    print(f"  ⚠️ Worker {worker_id}: Info panel error: {e}")
+            
+            if not clicked:
                 await asyncio.sleep(0.1)
                 continue
             
-            # STEP 2: Get input and save button
-            inp, save_btn = await get_rename_controls(page)
-            if not inp or not save_btn:
-                await ensure_info_panel_open(page)
-                await open_rename_dialog(page)
-                inp, save_btn = await get_rename_controls(page)
+            # ---- STEP 2: Find input field ----
+            input_field = None
+            try:
+                input_field = page.locator('input[aria-label="Group name"]').first
+                if await input_field.count() == 0:
+                    input_field = page.locator('[role="dialog"] input[type="text"]').first
+                if await input_field.count() == 0:
+                    input_field = page.locator('input').first
+            except:
+                pass
             
-            if not inp or not save_btn:
-                errors += 1
+            if not input_field or await input_field.count() == 0:
                 await asyncio.sleep(0.05)
                 continue
             
-            # STEP 3: Fill name
+            # ---- STEP 3: Fill name ----
             try:
-                await inp.fill(name, timeout=1000)
-            except Exception:
+                await input_field.fill(name)
+            except:
                 try:
-                    await inp.click(force=True)
-                    await inp.fill(name, timeout=1000)
-                except Exception:
+                    await input_field.click()
+                    await input_field.fill(name)
+                except:
                     pass
             
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(0.05)
             
-            # STEP 4: Click Save
+            # ---- STEP 4: Click Save ----
+            saved = False
             try:
-                disabled = await save_btn.get_attribute("aria-disabled")
-                if disabled == "true":
-                    await page.keyboard.press("Escape")
-                    await asyncio.sleep(0.01)
-                    continue
-            except Exception:
+                save_btn = page.locator('button:has-text("Save")').first
+                if await save_btn.count() > 0:
+                    await save_btn.click()
+                    saved = True
+            except:
                 pass
             
-            # Click save
-            await save_btn.click(force=True)
-            count += 1
-            errors = 0
-            
-            if count % 10 == 0:
-                print(f"  ⚡ Worker {worker_id}: {count} changes")
-            
-            # ULTRA-FAST DELAY (2ms)
-            await asyncio.sleep(0.002)
+            if saved:
+                count += 1
+                if count % 10 == 0:
+                    print(f"  ⚡ Worker {worker_id}: {count} changes")
+                await asyncio.sleep(0.05)
+            else:
+                await asyncio.sleep(0.02)
             
         except Exception as e:
-            errors += 1
-            if errors % 10 == 0:
-                print(f"  ⚠️ Worker {worker_id} error: {str(e)[:30]}")
+            print(f"  ⚠️ Worker {worker_id} error: {str(e)[:30]}")
             await asyncio.sleep(0.05)
     
     print(f"  ✅ Worker {worker_id}: {count} changes")
 
 async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner with 5 tabs using working selectors"""
+    """Main runner with 3 tabs"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -209,8 +148,6 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
         )
         
         context = await browser.new_context(
-            locale="en-US",
-            extra_http_headers={"Referer": "https://www.instagram.com/"},
             viewport={'width': 1280, 'height': 720},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
@@ -229,8 +166,8 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 "sameSite": "None"
             }])
         
-        # Use 5 tabs for speed
-        num_tabs = 5
+        # Use 3 tabs
+        num_tabs = 3
         print(f"  🌐 Opening {num_tabs} tabs...")
         
         pages = []
@@ -244,7 +181,7 @@ async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event,
                 print(f"  ⚠️ Tab {i+1} failed: {e}")
                 pages.append(page)
         
-        print(f"  🔥 Starting {len(pages)} workers (WORKING SELECTORS)...")
+        print(f"  🔥 Starting {len(pages)} workers (EXACT SELECTORS)...")
         
         # Start workers
         tasks = []
@@ -289,4 +226,4 @@ def start(query: str, thread_id: str, cl=None) -> str:
     _threads[key] = thread
     thread.start()
 
-    return f"⚡ WORKING SELECTORS: 5 tabs, 2ms delay! Use !ncstop to stop."
+    return f"⚡ EXACT SELECTORS: 3 tabs! Use !ncstop to stop."
