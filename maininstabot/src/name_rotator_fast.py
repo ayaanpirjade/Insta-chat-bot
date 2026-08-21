@@ -1,17 +1,15 @@
-"""CORRECT - Finds the right group name element!"""
-import asyncio
-import random
-import re
+"""LIGHTNING FAST - Single Account, Single Login, Ultra-Fast"""
 import time
+import random
 import threading
-import os
+import re
 from typing import Dict, Optional
-from playwright.async_api import async_playwright
-from dotenv import load_dotenv
 
 EMOJIS = ["✨", "🔥", "💫", "🌙", "💎", "🌈", "😎", "🚀", "🎵", "🌟"]
 _stop_events: Dict[str, threading.Event] = {}
 _threads: Dict[str, threading.Thread] = {}
+_shared_client = None
+_client_lock = threading.Lock()
 
 def parse_duration(value: str) -> Optional[float]:
     match = re.fullmatch(r"(\d+(?:\.\d+)?)(s|m|h)?", value.strip().lower())
@@ -21,6 +19,22 @@ def parse_duration(value: str) -> Optional[float]:
     unit = match.group(2) or "s"
     return amount * {"s": 1, "m": 60, "h": 3600}[unit]
 
+def get_client():
+    """Get shared client - SINGLE LOGIN ONLY"""
+    global _shared_client
+    with _client_lock:
+        if _shared_client is None:
+            try:
+                from .session_manager import RotatingSessionManager
+                sm = RotatingSessionManager()
+                client, _ = sm.get_client()
+                _shared_client = client
+                print("  ✅ Shared client created (single login)")
+            except Exception as e:
+                print(f"  ❌ Failed to create client: {e}")
+                return None
+        return _shared_client
+
 def stop(thread_id: str) -> bool:
     key = str(thread_id)
     event = _stop_events.pop(key, None)
@@ -28,234 +42,85 @@ def stop(thread_id: str) -> bool:
     if event is None:
         return False
     event.set()
-    return thread is not None and thread.is_alive()
+    if thread and thread.is_alive():
+        thread.join(timeout=1)
+    return True
 
 def stop_command(thread_id: str) -> str:
     return "🛑 Rotation stopped." if stop(thread_id) else "ℹ️ No active rotation."
 
-async def rename_worker(page, base_name: str, stop_event: threading.Event, worker_id: int):
-    """CORRECT - Finds the RIGHT group name!"""
-    count = 0
-    print(f"  ⚡ Worker {worker_id} started (CORRECT)")
-    
-    try:
-        await page.wait_for_load_state('domcontentloaded', timeout=5000)
-    except:
-        pass
-    
-    # Debug: Find all clickable elements
-    print("  🔍 Debugging page elements...")
-    
-    while not stop_event.is_set():
-        try:
-            emoji = random.choice(EMOJIS)
-            new_name = f"{base_name[:95]} {emoji}"
-            
-            # === METHOD 1: Click on header h2 (GROUP NAME) ===
-            clicked = False
-            
-            # The group name is usually in header h2 or header div
-            try:
-                # Try h2 first
-                header = page.locator('header h2').first
-                if await header.count() > 0:
-                    await header.click(force=True)
-                    await asyncio.sleep(0.05)
-                    clicked = True
-                    print(f"  ✅ Clicked h2 header")
-            except:
-                pass
-            
-            # If h2 didn't work, try the div inside header
-            if not clicked:
-                try:
-                    header = page.locator('header div[role="button"]').first
-                    if await header.count() > 0:
-                        # Check if it's the group name (not profile)
-                        text = await header.text_content()
-                        if text and len(text) > 3 and not text.startswith('@'):
-                            await header.click(force=True)
-                            await asyncio.sleep(0.05)
-                            clicked = True
-                            print(f"  ✅ Clicked header div")
-                except:
-                    pass
-            
-            # === METHOD 2: Click on group name from the top ===
-            if not clicked:
-                try:
-                    # Look for the group name text directly
-                    group_name_elem = page.locator('text=masti khor').first
-                    if await group_name_elem.count() > 0:
-                        await group_name_elem.click(force=True)
-                        await asyncio.sleep(0.05)
-                        clicked = True
-                        print(f"  ✅ Clicked by text")
-                except:
-                    pass
-            
-            # === METHOD 3: Try info panel ===
-            if not clicked:
-                try:
-                    info_btn = page.locator('svg[aria-label="Conversation information"]').first
-                    if await info_btn.count() > 0:
-                        await info_btn.click(force=True)
-                        await asyncio.sleep(0.05)
-                        rename_btn = page.locator('button:has-text("Change name")').first
-                        if await rename_btn.count() > 0:
-                            await rename_btn.click(force=True)
-                            await asyncio.sleep(0.05)
-                            clicked = True
-                            print(f"  ✅ Clicked via info panel")
-                except:
-                    pass
-            
-            if not clicked:
-                await asyncio.sleep(0.02)
-                continue
-            
-            # === FIND INPUT ===
-            input_field = None
-            selectors = [
-                'input[aria-label="Group name"]',
-                'input[name="change-group-name"]',
-                '[role="dialog"] input[type="text"]',
-                'input[placeholder*="Group name"]',
-                'input'
-            ]
-            
-            for selector in selectors:
-                try:
-                    field = page.locator(selector).first
-                    if await field.count() > 0 and await field.is_visible():
-                        input_field = field
-                        break
-                except:
-                    continue
-            
-            if not input_field:
-                await asyncio.sleep(0.02)
-                continue
-            
-            # === FILL NAME ===
-            try:
-                await input_field.fill(new_name)
-            except:
-                try:
-                    await input_field.click(force=True)
-                    await input_field.fill(new_name)
-                except:
-                    pass
-            
-            await asyncio.sleep(0.03)
-            
-            # === CLICK SAVE ===
-            saved = False
-            save_selectors = [
-                'button:has-text("Save")',
-                '[role="dialog"] button:has-text("Save")',
-                'div[role="button"]:has-text("Save")',
-            ]
-            
-            for selector in save_selectors:
-                try:
-                    save_btn = page.locator(selector).first
-                    if await save_btn.count() > 0 and await save_btn.is_visible():
-                        disabled = await save_btn.get_attribute("disabled")
-                        if disabled != "true":
-                            await save_btn.click(force=True)
-                            await asyncio.sleep(0.05)
-                            saved = True
-                            break
-                except:
-                    continue
-            
-            if saved:
-                await asyncio.sleep(0.05)
-                # Close dialog with Escape
-                try:
-                    await page.keyboard.press("Escape")
-                except:
-                    pass
-                
-                count += 1
-                if count % 5 == 0:
-                    print(f"  ⚡ Worker {worker_id}: {count} changes")
-            else:
-                # Try Enter key
-                try:
-                    await page.keyboard.press("Enter")
-                    await asyncio.sleep(0.05)
-                    await page.keyboard.press("Escape")
-                    count += 1
-                except:
-                    pass
-            
-            await asyncio.sleep(0.02)
-            
-        except Exception as e:
-            await asyncio.sleep(0.02)
-    
-    print(f"  ✅ Worker {worker_id}: {count} changes")
+def rename_worker(thread_id: str, base_name: str, stop_event: threading.Event, worker_id: int, duration: float):
+    """Single worker - FAST and RELIABLE with rate limit handling"""
+    client = get_client()
+    if not client:
+        return
 
-async def async_runner(dm_url: str, base_name: str, stop_event: threading.Event, duration: float):
-    """Main runner"""
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                '--no-sandbox',
-                '--disable-gpu',
-                '--disable-dev-shm-usage',
-                '--disable-setuid-sandbox'
-            ]
-        )
-        
-        context = await browser.new_context(
-            viewport={'width': 1280, 'height': 720},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        
-        load_dotenv()
-        session_id = os.getenv("SESSION_ID")
-        if session_id:
-            await context.add_cookies([{
-                "name": "sessionid",
-                "value": session_id,
-                "domain": ".instagram.com",
-                "path": "/",
-                "httpOnly": True,
-                "secure": True,
-                "sameSite": "None"
-            }])
-        
-        print(f"  🌐 Opening tab...")
-        
-        page = await context.new_page()
+    used_names = set()
+    count = 0
+    errors = 0
+    start_time = time.time()
+    deadline = start_time + duration
+    rate_limit_wait = 0
+
+    print(f"  🔥 Worker {worker_id} started")
+
+    while not stop_event.is_set() and time.time() < deadline:
         try:
-            await page.goto(dm_url, wait_until='domcontentloaded', timeout=20000)
-            print(f"  ✅ Tab loaded")
-            
-            # Debug: Print the page title and header
-            title = await page.title()
-            print(f"  📄 Page title: {title}")
-            
-            # Find the group name
-            try:
-                group_name = await page.locator('header h2').first.text_content()
-                print(f"  📝 Group name from h2: {group_name}")
-            except:
-                pass
-            
+            # If rate limited, wait
+            if rate_limit_wait > 0:
+                time.sleep(rate_limit_wait)
+                rate_limit_wait = 0
+                continue
+
+            # Generate unique name
+            emoji = random.choice(EMOJIS)
+            name = f"{base_name[:95]} {emoji}"
+            if name in used_names:
+                name = f"{name} {random.randint(1,999)}"
+            used_names.add(name)
+            if len(used_names) > 100:
+                used_names.clear()
+
+            # DIRECT API CALL
+            client.direct_thread_update_title(int(thread_id), name)
+            count += 1
+            errors = 0
+
+            # Print speed every 50 updates
+            if count % 50 == 0:
+                elapsed = time.time() - start_time
+                speed = count / elapsed if elapsed > 0 else 0
+                print(f"  ⚡ Worker {worker_id}: {count} updates ({speed:.0f}/sec)")
+
+            # ULTRA-FAST delay (1ms)
+            time.sleep(0.001)
+
         except Exception as e:
-            print(f"  ⚠️ Tab failed: {e}")
-        
-        print(f"  🔥 Starting worker (CORRECT)...")
-        await rename_worker(page, base_name, stop_event, 1)
-        
-        await browser.close()
+            errors += 1
+            error_str = str(e).lower()
+
+            if "403" in error_str or "rate" in error_str or "limit" in error_str:
+                rate_limit_wait = 2.0  # Wait 2 seconds
+                print(f"  ⚠️ Worker {worker_id}: Rate limit, waiting...")
+            elif "login" in error_str or "session" in error_str:
+                # Refresh session
+                with _client_lock:
+                    global _shared_client
+                    _shared_client = None
+                    client = get_client()
+                    if not client:
+                        break
+            else:
+                if errors % 5 == 0:
+                    print(f"  ⚠️ Worker {worker_id} error: {str(e)[:50]}")
+                time.sleep(0.01)
+
+    elapsed = time.time() - start_time
+    speed = count / elapsed if elapsed > 0 else 0
+    print(f"  ✅ Worker {worker_id}: {count} updates ({speed:.0f}/sec)")
 
 def start(query: str, thread_id: str, cl=None) -> str:
+    """Start lightning-fast rotation"""
     parts = query.strip().rsplit(maxsplit=1)
     if len(parts) != 2:
         return "Usage: !nc <base name> <duration>\nExample: !nc CHU LOVERS 10m"
@@ -267,19 +132,44 @@ def start(query: str, thread_id: str, cl=None) -> str:
     if duration < 5:
         return "⏳ Duration must be at least 5 seconds."
 
+    # Stop previous rotation
     stop(str(thread_id))
 
-    dm_url = f"https://www.instagram.com/direct/t/{thread_id}/"
+    # Create shared client ONCE
+    client = get_client()
+    if not client:
+        return "❌ Failed to create Instagram client"
 
     key = str(thread_id)
     event = threading.Event()
     _stop_events[key] = event
 
-    def run_async():
-        asyncio.run(async_runner(dm_url, base_name, event, duration))
+    # Start workers (10 is optimal to avoid rate limits)
+    num_workers = 10
+    threads = []
+    for i in range(num_workers):
+        t = threading.Thread(
+            target=rename_worker,
+            args=(thread_id, base_name, event, i+1, duration),
+            daemon=True
+        )
+        t.start()
+        threads.append(t)
 
-    thread = threading.Thread(target=run_async, daemon=True)
-    _threads[key] = thread
-    thread.start()
+    # Store main thread for stop command
+    def monitor():
+        for t in threads:
+            t.join()
+        _stop_events.pop(key, None)
+        _threads.pop(key, None)
 
-    return f"⚡ CORRECT: Clicking the right element! Use !ncstop to stop."
+    monitor_thread = threading.Thread(target=monitor, daemon=True)
+    _threads[key] = monitor_thread
+    monitor_thread.start()
+
+    return f"⚡ LIGHTNING FAST: {num_workers} workers, 1ms delay! Use !ncstop to stop."
+
+def clean_up():
+    """Clean up"""
+    for key in list(_stop_events.keys()):
+        stop(key)
