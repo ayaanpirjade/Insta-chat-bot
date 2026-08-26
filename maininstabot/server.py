@@ -98,10 +98,11 @@ def handle_incoming_message(msg, thread, my_id: str):
 
         is_group = thread.is_group or len(thread.users) > 1
 
-        if not text:
-            return
-
-        print(f"💬 @{username}: {text[:50]}")
+        # Process all messages (text or media) to allow caching/routing
+        if text:
+            print(f"💬 @{username}: {text[:50]}")
+        else:
+            print(f"📦 @{username}: [{msg.item_type}]")
 
         cl, _ = session_manager.get_client()
 
@@ -242,8 +243,8 @@ def main():
                 for msg in thread.messages:
                     if tid in last_seen_message_ids and msg.id == last_seen_message_ids[tid]:
                         break
-                    if msg.item_type == "text" and msg.text:
-                        new_messages.append(msg)
+                    # Capture all messages to allow media caching (reel/audio)
+                    new_messages.append(msg)
 
                 # Process messages (with delay)
                 for msg in reversed(new_messages):

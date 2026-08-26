@@ -41,6 +41,12 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
     p = config.PREFIX
     cmd, args = parse_command(text, p)
 
+    # ── 0. Cache Reel if present ──
+    if msg:
+        reel_data = reel.extract_reel_from_message(msg)
+        if reel_data:
+            reel.cache_reel(thread_id, reel_data)
+
     # ── 1. Check for Active Game Session ──
     active_session = game.get_active_game(thread_id)
     if active_session:
@@ -477,10 +483,12 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
     # In DMs, ordinary messages are AI chat. In groups, AI replies require
     # an explicit username/name mention; GROUP_AI_MODE is intentionally not
     # used as an automatic group trigger.
-    should_reply_ai = mentioned or not is_group
+    should_reply_ai = mentioned or (not is_group and text)
     if should_reply_ai:
         if not clean_text:
-            return f"Hey @{username}! Need help? Type {p}help or ask me anything."
+            if mentioned:
+                return f"Hey @{username}! Need help? Type {p}help or ask me anything."
+            return None
         return ai.ask_ai(clean_text, user_id=user_id, conversation_id=f"{thread_id}:{user_id}")
 
     return None

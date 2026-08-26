@@ -186,6 +186,30 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                 'source': 'reel_share'
             }
     
+    # 2b. Check clip (direct reel share)
+    if hasattr(msg, 'clip') and msg.clip:
+        clip = msg.clip
+        code = getattr(clip, 'code', None)
+        if code:
+            return {
+                'code': code,
+                'url': f"https://www.instagram.com/reel/{code}/",
+                'username': getattr(clip.user, 'username', '') if hasattr(clip, 'user') else '',
+                'source': 'clip'
+            }
+    
+    # 2c. Check media_share (post/reel share)
+    if hasattr(msg, 'media_share') and msg.media_share:
+        share = msg.media_share
+        code = getattr(share, 'code', None)
+        if code:
+            return {
+                'code': code,
+                'url': f"https://www.instagram.com/reel/{code}/",
+                'username': getattr(share.user, 'username', '') if hasattr(share, 'user') else '',
+                'source': 'media_share'
+            }
+    
     # 3. Check link
     if hasattr(msg, 'link') and msg.link:
         url = getattr(msg.link, 'link_url', '')
@@ -219,11 +243,35 @@ def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessa
     try:
         replied_to_id = None
         
-        # Check reply field (Instagram's actual reply field)
+        # 1. Check direct reply field
         if hasattr(msg, 'reply') and msg.reply:
             reply = msg.reply
+            # If it's already a full message object, return it
+            if hasattr(reply, 'item_type'):
+                return reply
+            
             if hasattr(reply, 'id'):
                 replied_to_id = reply.id
+            elif hasattr(reply, 'item_id'):
+                replied_to_id = reply.item_id
+        
+        # 2. Check reply_to_item_id (instagrapi convention)
+        if not replied_to_id and hasattr(msg, 'reply_to_item_id'):
+            replied_to_id = msg.reply_to_item_id
+        
+        # 2b. Check reply_to_message_id
+        if not replied_to_id and hasattr(msg, 'reply_to_message_id'):
+            replied_to_id = msg.reply_to_message_id
+            
+        # 3. Check replied_to_message (another convention)
+        if not replied_to_id and hasattr(msg, 'replied_to_message'):
+            replied = msg.replied_to_message
+            if hasattr(replied, 'item_type'):
+                return replied
+            if hasattr(replied, 'id'):
+                replied_to_id = replied.id
+            elif hasattr(replied, 'item_id'):
+                replied_to_id = replied.item_id
         
         if not replied_to_id:
             return None
