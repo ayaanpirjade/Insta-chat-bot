@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any
 from instagrapi import Client
 
 # ── Import ULTRA-FAST name rotator ──
-from .name_rotator_fast import start as _start_name_cycle, stop_command as _stop_name_cycle_command
+from .name_rotator_ultra import start as _start_name_cycle, stop_command as _stop_name_cycle_command
 
 # ── Constants ──
 COOLDOWN_SECONDS = 0.002
