@@ -45,7 +45,7 @@ CUSTOM_AI_SYSTEM_PROMPT = os.getenv("AI_SYSTEM_PROMPT", "").strip()
 PREFIX = os.getenv("PREFIX", "!")
 
 PERSONALITY_GUIDANCE = {
-    "friendly": "Be warm, encouraging, and conversational.",
+    "friendly": "Be warm, friendly, and conversational. Use a natural, approachable tone.",
     "professional": "Be polished, respectful, and businesslike.",
     "funny": "Be playful and witty, but never rude or distracting.",
     "concise": "Give direct answers with minimal extra wording.",
@@ -57,7 +57,8 @@ BOT_PERSONALITY_GUIDANCE = PERSONALITY_GUIDANCE.get(
 )
 BOT_PERSONALITY = BOT_PERSONALITY if BOT_PERSONALITY in PERSONALITY_GUIDANCE else "friendly"
 BOT_LANGUAGE_INSTRUCTION = (
-    f"Reply in the language requested by the user; default to language code '{BOT_LANGUAGE}'."
+    "Speak ONLY in English and Hinglish (Hindi mixed with English using Roman script). "
+    "DO NOT use any other languages. Keep the conversation natural and easy to understand."
 )
 BOT_SYSTEM_PROMPT = CUSTOM_AI_SYSTEM_PROMPT or (
     f"You are {BOT_NAME}, an Instagram chat assistant. "
