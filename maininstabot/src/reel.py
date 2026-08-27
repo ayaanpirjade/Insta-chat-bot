@@ -164,79 +164,51 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
         return None
 
 
-def extract_reel_from_message(msg, cl: Optional[Client] = None) -> Optional[Dict[str, Any]]:
-    if not msg:
-        return None
+def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
+    """Fast, safe reel extraction for background caching"""
+    if not msg: return None
     
-    # 1. Fallback to existing detection layers (No API calls here for background caching)
-    # Check raw_xma
-    if hasattr(msg, 'raw_xma') and msg.raw_xma:
-        reel_data = extract_reel_from_xma(msg)
-        if reel_data:
-            return reel_data
-    
-    # Check reel_share
+    # 1. Check direct reel_share
     if hasattr(msg, 'reel_share') and msg.reel_share:
-        reel = msg.reel_share
-        code = getattr(reel, 'code', None)
+        code = getattr(msg.reel_share, 'code', None)
         if code:
             return {
                 'code': code,
                 'url': f"https://www.instagram.com/reel/{code}/",
-                'username': getattr(reel.user, 'username', '') if hasattr(reel, 'user') else '',
+                'username': getattr(msg.reel_share.user, 'username', '') if hasattr(msg.reel_share, 'user') else '',
                 'source': 'reel_share'
             }
     
-    # Check clip (direct reel share)
+    # 2. Check clip (direct reel share)
     if hasattr(msg, 'clip') and msg.clip:
-        clip = msg.clip
-        code = getattr(clip, 'code', None)
+        code = getattr(msg.clip, 'code', None)
         if code:
             return {
                 'code': code,
                 'url': f"https://www.instagram.com/reel/{code}/",
-                'username': getattr(clip.user, 'username', '') if hasattr(clip, 'user') else '',
+                'username': getattr(msg.clip.user, 'username', '') if hasattr(msg.clip, 'user') else '',
                 'source': 'clip'
             }
     
-    # Check media_share (post/reel share)
+    # 3. Check media_share
     if hasattr(msg, 'media_share') and msg.media_share:
-        share = msg.media_share
-        code = getattr(share, 'code', None)
+        code = getattr(msg.media_share, 'code', None)
         if code:
             return {
                 'code': code,
                 'url': f"https://www.instagram.com/reel/{code}/",
-                'username': getattr(share.user, 'username', '') if hasattr(share, 'user') else '',
+                'username': getattr(msg.media_share.user, 'username', '') if hasattr(msg.media_share, 'user') else '',
                 'source': 'media_share'
             }
     
-    # Check link
-    if hasattr(msg, 'link') and msg.link:
-        url = getattr(msg.link, 'link_url', '')
-        if url and 'instagram.com' in url:
-            code = extract_reel_id_from_url(url)
-            if code:
-                return {
-                    'code': code,
-                    'url': url,
-                    'username': '',
-                    'source': 'link'
-                }
-    
-    # Check text for link
+    # 4. Check text/link
     if hasattr(msg, 'text') and msg.text:
         url = extract_link_from_text(msg.text)
         if url:
             code = extract_reel_id_from_url(url)
             if code:
-                return {
-                    'code': code,
-                    'url': url,
-                    'username': '',
-                    'source': 'text'
-                }
-    
+                return {'code': code, 'url': url, 'username': '', 'source': 'text'}
+                
     return None
 
 

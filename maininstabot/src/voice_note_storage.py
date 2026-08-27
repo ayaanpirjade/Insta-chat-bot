@@ -25,8 +25,12 @@ def cache_vn(thread_id: str, url: str):
 def get_cached_vn(thread_id: str) -> Optional[str]:
     return _vn_cache.get(thread_id)
 
-def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[str]:
-    """Extract voice note URL using 'Omni-Scan' layered detection"""
+def extract_vn_url_from_message(msg, cl: Optional[Client] = None, robust: bool = False) -> Optional[str]:
+    """
+    Extract voice note URL.
+    - If robust=False (default): Uses fast, safe paths only (for background caching).
+    - If robust=True: Uses deep scanning and API fallback (for explicit commands).
+    """
     try:
         if not msg: return None
         
@@ -34,7 +38,9 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
             if isinstance(o, dict): return o.get(k)
             return getattr(o, k, None)
 
-        # 1. Direct Hit: Check common instagrapi voice note paths
+        # ── PHASE 1: FAST PATHS (Safe for background) ──
+        
+        # 1. Direct Voice Media
         vm = get_v(msg, 'voice_media')
         if vm:
             m = get_v(vm, 'media')
@@ -48,29 +54,30 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
                     url = get_v(vv[0], 'url')
                     if url: return str(url).replace('\\/', '/')
 
-        # 2. Check clip/media_share
-        for container in ['clip', 'media_share']:
-            c_obj = get_v(msg, container)
-            if c_obj:
-                vv = get_v(c_obj, 'video_versions')
-                if vv and isinstance(vv, list) and len(vv) > 0:
-                    url = get_v(vv[0], 'url')
-                    if url: return str(url).replace('\\/', '/')
+        # 2. Clips/Reels (Fast check)
+        clip = get_v(msg, 'clip')
+        if clip:
+            vv = get_v(clip, 'video_versions')
+            if vv and isinstance(vv, list) and len(vv) > 0:
+                url = get_v(vv[0], 'url')
+                if url: return str(url).replace('\\/', '/')
+
+        if not robust: return None
+
+        # ── PHASE 2: ROBUST PATHS (Only for explicit commands) ──
 
         # 3. Recursive Omni-Scan (Catch-all)
         def omni_scan(obj, depth=0):
-            if depth > 12: return None
+            if depth > 10: return None # Reduced depth for safety
             if not obj: return None
             
-            # String URL check
             if isinstance(obj, str) and obj.startswith('http'):
                 low = obj.lower()
                 if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src']):
                     return obj.replace('\\/', '/')
             
-            # Dict scan
             if isinstance(obj, dict):
-                for k in ['audio_src', 'url', 'video_url', 'audio_url', 'target_url', 'uri']:
+                for k in ['audio_src', 'url', 'video_url', 'audio_url', 'target_url']:
                     res = omni_scan(obj.get(k), depth + 1)
                     if res: return res
                 for v in obj.values():
@@ -78,29 +85,26 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
                         res = omni_scan(v, depth + 1)
                         if res: return res
             
-            # List scan
             if isinstance(obj, (list, tuple)):
                 for item in obj:
                     res = omni_scan(item, depth + 1)
                     if res: return res
             
-            # Object attribute scan (Exhaustive)
-            try:
-                for attr in dir(obj):
-                    if attr.startswith('_'): continue
+            # Safe object scan (avoid dir() on complex objects)
+            if hasattr(obj, '__dict__') or not isinstance(obj, (str, int, float, bool)):
+                for attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions', 'audio_src', 'url']:
                     try:
-                        val = getattr(obj, attr)
-                        if not val or callable(val): continue
-                        res = omni_scan(val, depth + 1)
-                        if res: return res
+                        val = getattr(obj, attr, None)
+                        if val:
+                            res = omni_scan(val, depth + 1)
+                            if res: return res
                     except: continue
-            except: pass
             return None
 
         url = omni_scan(msg)
         if url: return url
 
-        # 4. API Fallback (Only if we have a valid media ID)
+        # 4. API Fallback
         if cl:
             media_id = None
             if vm: media_id = get_v(vm, 'media_id') or get_v(get_v(vm, 'media'), 'pk')
@@ -109,7 +113,6 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
 
             if media_id and str(media_id).isdigit() and 10 <= len(str(media_id)) <= 20:
                 try:
-                    print(f"  🔍 Fetching media info for ID: {media_id}")
                     info = cl.media_info(media_id)
                     if info:
                         return getattr(info, 'video_url', None) or getattr(info, 'audio_url', None) or (info.video_versions[0].get('url') if info.video_versions else None)
@@ -131,12 +134,12 @@ def handle_dvn_command(query: str, user_id: str, username: str, thread_id: str, 
     # 1. Try Cache First (Fastest)
     vn_url = get_cached_vn(thread_id)
     
-    # 2. Try Reply Detection
+    # 2. Try Reply Detection (Robust mode)
     if not vn_url and msg:
         from .reel import get_replied_message
         replied = get_replied_message(cl, thread_id, msg)
         if replied:
-            vn_url = extract_vn_url_from_message(replied, cl)
+            vn_url = extract_vn_url_from_message(replied, cl, robust=True)
     
     if not vn_url:
         return "❌ Please REPLY to a voice note with `!dvn <name>` or use it right after a VN is sent."
