@@ -42,11 +42,17 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
     p = config.PREFIX
     cmd, args = parse_command(text, p)
 
-    # ── 0. Cache Reel if present (Local only, no API calls here) ──
+    # ── 0. Cache Reel & VN if present (Local only, no API calls here) ──
     if msg:
+        # Cache Reels
         reel_data = reel.extract_reel_from_message(msg)
         if reel_data:
             reel.cache_reel(thread_id, reel_data)
+        
+        # Cache Voice Notes
+        vn_url = vn_storage.extract_vn_url_from_message(msg)
+        if vn_url:
+            vn_storage.cache_vn(thread_id, vn_url)
 
     # ── 1. Check for Active Game Session ──
     active_session = game.get_active_game(thread_id)
