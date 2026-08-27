@@ -16,88 +16,100 @@ VN_DATA_DIR = os.path.join(BASE_DIR, "data", "voice_notes")
 os.makedirs(VN_DATA_DIR, exist_ok=True)
 
 def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[str]:
-    """Extract voice note URL using recursive scanning and optional API fallback"""
+    """Extract voice note URL with 'God-Mode' exhaustive detection"""
     try:
         if not msg:
             return None
         
-        # 1. Try to get media_id/pk to fetch fresh info from API (Most Reliable)
-        media_id = None
-        if hasattr(msg, 'voice_media') and msg.voice_media:
-            media_id = getattr(msg.voice_media, 'media_id', None) or getattr(msg.voice_media.media, 'pk', None)
-        elif hasattr(msg, 'clip') and msg.clip:
-            media_id = getattr(msg.clip, 'pk', None) or getattr(msg.clip, 'id', None)
-        elif hasattr(msg, 'media_share') and msg.media_share:
-            media_id = getattr(msg.media_share, 'pk', None) or getattr(msg.media_share, 'id', None)
+        def get_val(obj, key):
+            if isinstance(obj, dict): return obj.get(key)
+            return getattr(obj, key, None)
+
+        # 1. Exhaustive ID collection for API fallback
+        potential_ids = []
         
-        if not media_id and hasattr(msg, 'pk'):
-            media_id = msg.pk
+        # Check direct properties
+        for attr in ['pk', 'id', 'item_id', 'media_id']:
+            val = get_val(msg, attr)
+            if val: potential_ids.append(str(val))
+            
+        # Check nested media properties
+        for container in ['voice_media', 'clip', 'media_share', 'media']:
+            c_obj = get_val(msg, container)
+            if c_obj:
+                for attr in ['pk', 'id', 'media_id']:
+                    val = get_val(c_obj, attr)
+                    if val: potential_ids.append(str(val))
+                # Even deeper
+                m_obj = get_val(c_obj, 'media')
+                if m_obj:
+                    for attr in ['pk', 'id', 'media_id']:
+                        val = get_val(m_obj, attr)
+                        if val: potential_ids.append(str(val))
 
-        if media_id and cl:
-            try:
-                print(f"  🔍 Fetching fresh media info for ID: {media_id}")
-                media_info = cl.media_info(media_id)
-                if media_info:
-                    if hasattr(media_info, 'video_url') and media_info.video_url:
-                        return str(media_info.video_url)
-                    if hasattr(media_info, 'video_versions') and media_info.video_versions:
-                        return str(media_info.video_versions[0].get('url'))
-            except Exception as e:
-                print(f"  ⚠️ API media_info fetch failed: {e}")
+        # 2. Try API with all collected IDs
+        if cl:
+            for mid in list(set(potential_ids)):
+                try:
+                    # Only try IDs that look like Instagram media PKs (long digits)
+                    if mid.isdigit() and len(mid) > 10:
+                        print(f"  🔍 Trying API media_info for ID: {mid}")
+                        info = cl.media_info(mid)
+                        if info:
+                            # Check all possible URL locations in media info
+                            for attr in ['video_url', 'audio_url']:
+                                url = getattr(info, attr, None)
+                                if url: return str(url)
+                            if hasattr(info, 'video_versions') and info.video_versions:
+                                return str(info.video_versions[0].get('url'))
+                except: pass
 
-        # 2. Fallback to recursive scan of the message object
-        def find_url(obj, depth=0):
-            if depth > 10: return None
+        # 3. Final Recursive Scan (The Catch-All)
+        def deep_scan(obj, depth=0):
+            if depth > 15: return None
             if not obj: return None
             
+            # String URL check
             if isinstance(obj, str):
                 low = obj.lower()
-                if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src', 'video_versions', 'dash']):
-                     if low.startswith('http'):
-                         return obj
+                # Must look like a URL
+                if low.startswith('http'):
+                    # Check for common audio/video extensions or Instagram specific paths
+                    if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src', 'video_versions', 'dash']) or 'instagram.com' in low:
+                         return obj.replace('\\/', '/').strip('"')
             
+            # Dictionary scan
             if isinstance(obj, dict):
-                for priority_key in ['audio_src', 'url', 'target_url', 'audio_url', 'video_url']:
-                    if priority_key in obj:
-                        res = find_url(obj[priority_key], depth + 1)
-                        if res: return res
+                # Check priority keys first
+                for k in ['audio_src', 'url', 'video_url', 'audio_url', 'target_url', 'uri']:
+                    res = deep_scan(obj.get(k), depth + 1)
+                    if res: return res
                 for v in obj.values():
-                    res = find_url(v, depth + 1)
+                    res = deep_scan(v, depth + 1)
                     if res: return res
             
+            # List scan
             if isinstance(obj, (list, tuple)):
                 for item in obj:
-                    res = find_url(item, depth + 1)
+                    res = deep_scan(item, depth + 1)
                     if res: return res
             
+            # Object attribute scan
             try:
-                for attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions']:
-                    val = getattr(obj, attr, None)
-                    if val:
-                        res = find_url(val, depth + 1)
-                        if res: return res
-                
                 for attr in dir(obj):
                     if attr.startswith('_'): continue
                     try:
                         val = getattr(obj, attr)
                         if not val or callable(val): continue
-                        res = find_url(val, depth + 1)
+                        res = deep_scan(val, depth + 1)
                         if res: return res
                     except: continue
             except: pass
             return None
 
-        url = find_url(msg)
-        if url:
-            url = url.replace('\\/', '/')
-            if url.startswith('"') and url.endswith('"'):
-                url = url[1:-1]
-            return url
-            
-        return None
+        return deep_scan(msg)
     except Exception as e:
-        print(f"  ⚠️ VN extract failed: {e}")
+        print(f"  ⚠️ God-Mode extract failed: {e}")
         return None
 
 def handle_dvn_command(query: str, user_id: str, username: str, thread_id: str, cl: Client, msg=None) -> str:

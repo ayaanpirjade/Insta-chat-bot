@@ -300,7 +300,8 @@ def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessa
         if not replied_to_id:
             return None
         
-        messages = cl.direct_messages(thread_id, amount=30)
+        # Increase amount to 50 for better reliability in busy chats
+        messages = cl.direct_messages(thread_id, amount=50)
         
         for m in messages:
             if str(m.id) == str(replied_to_id):
