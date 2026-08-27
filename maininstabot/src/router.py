@@ -42,9 +42,9 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
     p = config.PREFIX
     cmd, args = parse_command(text, p)
 
-    # ── 0. Cache Reel if present ──
+    # ── 0. Cache Reel if present (Local only, no API calls here) ──
     if msg:
-        reel_data = reel.extract_reel_from_message(msg, cl)
+        reel_data = reel.extract_reel_from_message(msg)
         if reel_data:
             reel.cache_reel(thread_id, reel_data)
 

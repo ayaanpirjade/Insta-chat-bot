@@ -16,102 +16,57 @@ VN_DATA_DIR = os.path.join(BASE_DIR, "data", "voice_notes")
 os.makedirs(VN_DATA_DIR, exist_ok=True)
 
 def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[str]:
-    """Extract voice note URL with focused media-id detection and deep scanning"""
+    """Extract voice note URL safely and reliably"""
     try:
         if not msg:
             return None
         
-        def get_val(obj, key):
-            if isinstance(obj, dict): return obj.get(key)
-            return getattr(obj, key, None)
+        # Helper to safely get value from dict or object
+        def get_v(o, k):
+            if isinstance(o, dict): return o.get(k)
+            return getattr(o, k, None)
 
-        # 1. Targeted ID collection (Avoid message item_ids)
-        media_ids = []
-        
-        # Check voice_media container specifically
-        vm = get_val(msg, 'voice_media')
-        if vm:
-            # Try to get media_id or pk from voice_media
-            for k in ['media_id', 'pk', 'id']:
-                v = get_val(vm, k)
-                if v: media_ids.append(str(v))
-            # Try deeper in media object
-            m = get_val(vm, 'media')
-            if m:
-                for k in ['pk', 'id', 'media_id']:
-                    v = get_val(m, k)
-                    if v: media_ids.append(str(v))
-
-        # Check other media containers
-        for container in ['clip', 'media_share']:
-            c_obj = get_val(msg, container)
-            if c_obj:
-                for k in ['pk', 'id', 'media_id']:
-                    v = get_val(c_obj, k)
-                    if v: media_ids.append(str(v))
-
-        # 2. Try API with valid-looking media PKs
-        if cl:
-            for mid in list(set(media_ids)):
-                try:
-                    # Media PKs are typically digits and not extremely long (unlike item_ids)
-                    if mid.isdigit() and 10 <= len(mid) <= 20:
-                        print(f"  🔍 Fetching fresh media info for ID: {mid}")
-                        info = cl.media_info(mid)
-                        if info:
-                            for attr in ['video_url', 'audio_url']:
-                                url = getattr(info, attr, None)
-                                if url: return str(url)
-                            if hasattr(info, 'video_versions') and info.video_versions:
-                                return str(info.video_versions[0].get('url'))
-                except: pass
-
-        # 3. Recursive Deep Scan (Catch-All for embedded URLs)
-        def deep_scan(obj, depth=0):
-            if depth > 15: return None
-            if not obj: return None
-            
-            if isinstance(obj, str):
+        # 1. First check if we already have a URL in the object (Fastest)
+        def quick_scan(obj, depth=0):
+            if depth > 5: return None
+            if isinstance(obj, str) and obj.startswith('http'):
                 low = obj.lower()
-                if low.startswith('http'):
-                    if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src', 'video_versions', 'dash']):
-                         return obj.replace('\\/', '/').strip('"')
-            
+                if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src']):
+                    return obj.replace('\\/', '/')
             if isinstance(obj, dict):
-                for k in ['audio_src', 'url', 'video_url', 'audio_url', 'target_url', 'uri']:
-                    res = deep_scan(obj.get(k), depth + 1)
+                for k in ['audio_src', 'url', 'audio_url', 'video_url']:
+                    res = quick_scan(obj.get(k), depth + 1)
                     if res: return res
-                for v in obj.values():
-                    res = deep_scan(v, depth + 1)
-                    if res: return res
-            
-            if isinstance(obj, (list, tuple)):
-                for item in obj:
-                    res = deep_scan(item, depth + 1)
-                    if res: return res
-            
-            try:
-                # Prioritize common media attributes
-                for attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions']:
-                    val = getattr(obj, attr, None)
-                    if val:
-                        res = deep_scan(val, depth + 1)
-                        if res: return res
-                
-                # Scan other attributes
-                for attr in dir(obj):
-                    if attr.startswith('_') or attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions']: 
-                        continue
-                    try:
-                        val = getattr(obj, attr)
-                        if not val or callable(val): continue
-                        res = deep_scan(val, depth + 1)
-                        if res: return res
-                    except: continue
-            except: pass
+            if hasattr(obj, 'audio_src'): return obj.audio_src
             return None
 
-        return deep_scan(msg)
+        url = quick_scan(msg)
+        if url: return url
+
+        # 2. If no URL, try to get media_id and fetch from API (Most Reliable)
+        if cl:
+            media_id = None
+            # Look for media ID in common places
+            for container in ['voice_media', 'clip', 'media_share', 'media']:
+                c_obj = get_v(msg, container)
+                if c_obj:
+                    media_id = get_v(c_obj, 'media_id') or get_v(c_obj, 'pk') or get_v(c_obj, 'id')
+                    if not media_id:
+                        m_inner = get_v(c_obj, 'media')
+                        if m_inner: media_id = get_v(m_inner, 'pk') or get_v(m_inner, 'id')
+                if media_id: break
+            
+            if not media_id: media_id = get_v(msg, 'pk') or get_v(msg, 'id')
+
+            if media_id and str(media_id).isdigit() and 10 <= len(str(media_id)) <= 20:
+                try:
+                    print(f"  🔍 Fetching media info for ID: {media_id}")
+                    info = cl.media_info(media_id)
+                    if info:
+                        return getattr(info, 'video_url', None) or getattr(info, 'audio_url', None) or (info.video_versions[0].get('url') if info.video_versions else None)
+                except: pass
+
+        return None
     except Exception as e:
         print(f"  ⚠️ Extract failed: {e}")
         return None

@@ -168,30 +168,7 @@ def extract_reel_from_message(msg, cl: Optional[Client] = None) -> Optional[Dict
     if not msg:
         return None
     
-    # 1. Try to get media info from API if possible (Most Reliable)
-    media_id = None
-    if hasattr(msg, 'clip') and msg.clip:
-        media_id = getattr(msg.clip, 'pk', None) or getattr(msg.clip, 'id', None)
-    elif hasattr(msg, 'media_share') and msg.media_share:
-        media_id = getattr(msg.media_share, 'pk', None) or getattr(msg.media_share, 'id', None)
-    elif hasattr(msg, 'pk'):
-        media_id = msg.pk
-
-    if media_id and cl:
-        try:
-            info = cl.media_info(media_id)
-            if info:
-                code = getattr(info, 'code', None)
-                if code:
-                    return {
-                        'code': code,
-                        'url': f"https://www.instagram.com/reel/{code}/",
-                        'username': getattr(info.user, 'username', '') if hasattr(info, 'user') else '',
-                        'source': 'api'
-                    }
-        except: pass
-
-    # 2. Fallback to existing detection layers
+    # 1. Fallback to existing detection layers (No API calls here for background caching)
     # Check raw_xma
     if hasattr(msg, 'raw_xma') and msg.raw_xma:
         reel_data = extract_reel_from_xma(msg)
@@ -318,7 +295,26 @@ def get_reel_from_reply(cl: Client, thread_id: str, msg) -> Optional[Dict[str, A
         replied = get_replied_message(cl, thread_id, msg)
         if not replied:
             return None
-        return extract_reel_from_message(replied, cl)
+        
+        # 1. Try API first for explicit command reply (Most Reliable)
+        media_id = getattr(replied, 'pk', None) or getattr(replied, 'id', None)
+        if hasattr(replied, 'clip'): media_id = getattr(replied.clip, 'pk', media_id)
+        elif hasattr(replied, 'media_share'): media_id = getattr(replied.media_share, 'pk', media_id)
+
+        if media_id and cl:
+            try:
+                info = cl.media_info(media_id)
+                if info and getattr(info, 'code', None):
+                    return {
+                        'code': info.code,
+                        'url': f"https://www.instagram.com/reel/{info.code}/",
+                        'username': getattr(info.user, 'username', ''),
+                        'source': 'api'
+                    }
+            except: pass
+
+        # 2. Fallback to local extraction
+        return extract_reel_from_message(replied)
     except:
         return None
 
