@@ -159,12 +159,25 @@ def handle_dvn_command(query: str, user_id: str, username: str, thread_id: str, 
     try:
         file_path = os.path.join(VN_DATA_DIR, f"{name}.m4a")
         
-        # instagrapi's official way to download media from a message
-        # This works even if URLs are hidden in the object
-        downloaded_path = cl.direct_media_download(target_msg.id)
+        # Try direct_media_download if available
+        download_func = getattr(cl, 'direct_media_download', None)
+        if not download_func:
+            # Fallback: Try to get media_id and use video_download (VNs are often treated as videos)
+            media_id = None
+            if hasattr(target_msg, 'voice_media'):
+                media_id = getattr(target_msg.voice_media, 'media_id', None) or getattr(target_msg.voice_media.media, 'pk', None)
+            if not media_id:
+                media_id = getattr(target_msg, 'pk', None)
+            
+            if media_id:
+                print(f"  🔍 Using video_download fallback for media_id: {media_id}")
+                downloaded_path = cl.video_download(media_id)
+            else:
+                downloaded_path = None
+        else:
+            downloaded_path = download_func(target_msg.id)
         
         if downloaded_path and os.path.exists(downloaded_path):
-            # Move to our storage
             import shutil
             shutil.move(str(downloaded_path), file_path)
             print(f"  ✅ Saved to: {file_path}")
