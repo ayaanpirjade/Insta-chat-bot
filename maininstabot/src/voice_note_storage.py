@@ -16,87 +16,70 @@ VN_DATA_DIR = os.path.join(BASE_DIR, "data", "voice_notes")
 os.makedirs(VN_DATA_DIR, exist_ok=True)
 
 def extract_vn_url_from_message(msg) -> Optional[str]:
-    """Extract voice note URL from a message object with multiple detection layers"""
+    """Extract voice note URL with 'Omega-Robust' recursive scanning"""
     try:
         if not msg:
             return None
         
-        # 1. Check item_type - if it's voice_media, it's definitely a VN
-        item_type = getattr(msg, 'item_type', '').lower()
-        
-        # 2. Layered detection across different instagrapi message shapes
-        url = None
-        
-        # Method A: voice_media.media.audio
-        if hasattr(msg, 'voice_media') and msg.voice_media:
-            vm = msg.voice_media
-            if hasattr(vm, 'media') and vm.media:
-                m = vm.media
-                if hasattr(m, 'audio') and m.audio:
-                    url = m.audio.get('audio_src')
-                if not url and hasattr(m, 'video_versions') and m.video_versions:
-                    url = m.video_versions[0].get('url')
-        
-        # Method B: clip (shared reels)
-        if not url and hasattr(msg, 'clip') and msg.clip:
-            c = msg.clip
-            if hasattr(c, 'video_versions') and c.video_versions:
-                url = c.video_versions[0].get('url')
-        
-        # Method C: media_share
-        if not url and hasattr(msg, 'media_share') and msg.media_share:
-            ms = msg.media_share
-            if hasattr(ms, 'video_versions') and ms.video_versions:
-                url = ms.video_versions[0].get('url')
-        
-        # Method D: direct audio/video versions on the message
-        if not url and hasattr(msg, 'video_versions') and msg.video_versions:
-            url = msg.video_versions[0].get('url')
-        
-        if not url and hasattr(msg, 'audio') and msg.audio:
-            url = getattr(msg.audio, 'audio_src', None)
+        def find_url(obj, depth=0):
+            if depth > 10: return None
+            if not obj: return None
+            
+            # 1. If string, check for audio/video URL patterns
+            if isinstance(obj, str):
+                low = obj.lower()
+                # Check for common audio/video extensions or Instagram specific paths
+                if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src', 'video_versions', 'dash']):
+                     # Must look like a URL
+                     if low.startswith('http'):
+                         return obj
+            
+            # 2. If dict, search values
+            if isinstance(obj, dict):
+                # Prioritize common keys
+                for priority_key in ['audio_src', 'url', 'target_url', 'audio_url', 'video_url']:
+                    if priority_key in obj:
+                        res = find_url(obj[priority_key], depth + 1)
+                        if res: return res
+                for v in obj.values():
+                    res = find_url(v, depth + 1)
+                    if res: return res
+            
+            # 3. If list/tuple, search items
+            if isinstance(obj, (list, tuple)):
+                for item in obj:
+                    res = find_url(item, depth + 1)
+                    if res: return res
+            
+            # 4. If object with attributes (Instagrapi models)
+            try:
+                # Prioritize common attributes
+                for attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions']:
+                    val = getattr(obj, attr, None)
+                    if val:
+                        res = find_url(val, depth + 1)
+                        if res: return res
+                
+                # Full scan of attributes
+                for attr in dir(obj):
+                    if attr.startswith('_'): continue
+                    try:
+                        val = getattr(obj, attr)
+                        if not val or callable(val): continue
+                        res = find_url(val, depth + 1)
+                        if res: return res
+                    except: continue
+            except: pass
+            
+            return None
 
-        # Method E: Raw XMA detection (for newer Instagram formats)
-        if not url and hasattr(msg, 'raw_xma') and msg.raw_xma:
-            xma = msg.raw_xma
-            if isinstance(xma, dict):
-                # Look for audio/clip references in XMA
-                for key in ['xma_audio', 'xma_clip', 'xma_media_share']:
-                    items = xma.get(key, [])
-                    if items and isinstance(items, list):
-                        content = items[0].get('serialized_content_ref')
-                        if content:
-                            try:
-                                import json
-                                data = json.loads(content) if isinstance(content, str) else content
-                                url = data.get('target_url') or data.get('audio_url')
-                                if url: break
-                            except: pass
-
-        # Method F: Recursive search (Catch-all)
-        if not url:
-            def find_url(obj, depth=0):
-                if depth > 5: return None
-                if isinstance(obj, str) and ('instagram.com' in obj or 'cdninstagram.com' in obj) and ('/audio' in obj or '.m4a' in obj or '.mp3' in obj or 'audio_src' in obj):
-                    return obj
-                if isinstance(obj, dict):
-                    for v in obj.values():
-                        res = find_url(v, depth + 1)
-                        if res: return res
-                if hasattr(obj, '__dict__'):
-                    for v in vars(obj).values():
-                        res = find_url(v, depth + 1)
-                        if res: return res
-                if isinstance(obj, list):
-                    for v in obj:
-                        res = find_url(v, depth + 1)
-                        if res: return res
-                return None
-            url = find_url(msg)
+        url = find_url(msg)
 
         if url:
-            # Clean URL (unescape slashes)
+            # Clean URL (unescape slashes and remove JSON escapes)
             url = url.replace('\\/', '/')
+            if url.startswith('"') and url.endswith('"'):
+                url = url[1:-1]
             return url
             
         return None
