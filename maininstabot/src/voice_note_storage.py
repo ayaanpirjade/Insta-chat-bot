@@ -125,51 +125,68 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None, robust: bool =
 
 def handle_dvn_command(query: str, user_id: str, username: str, thread_id: str, cl: Client, msg=None) -> str:
     """
-    !dvn <name> - Save a replied voice note
+    !dvn <name> - Save a replied voice note using Direct Download
     """
     name = query.strip().lower().replace(" ", "_")
     if not name:
         return "📝 Please provide a name to save the voice note.\nExample: !dvn funny_laugh"
     
-    # 1. Try Cache First (Fastest)
-    vn_url = get_cached_vn(thread_id)
-    
-    # 2. Try Reply Detection (Robust mode)
-    if not vn_url and msg:
+    # 1. Get the target message (either from reply or cache)
+    target_msg = None
+    if msg:
         from .reel import get_replied_message
-        replied = get_replied_message(cl, thread_id, msg)
-        if replied:
-            vn_url = extract_vn_url_from_message(replied, cl, robust=True)
+        target_msg = get_replied_message(cl, thread_id, msg)
     
-    if not vn_url:
-        return "❌ Please REPLY to a voice note with `!dvn <name>` or use it right after a VN is sent."
-    
-    print(f"\n📥 Saving voice note as: {name}")
-    
+    # If no reply, check if the last message in thread was a VN (via cache)
+    if not target_msg:
+        vn_url = get_cached_vn(thread_id)
+        if not vn_url:
+            return "❌ Please REPLY to a voice note with `!dvn <name>`"
+        
+        # If we have a cached URL, we can download it directly
+        try:
+            file_path = os.path.join(VN_DATA_DIR, f"{name}.m4a")
+            response = requests.get(vn_url, timeout=30)
+            response.raise_for_status()
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+            return f"✅ **Voice note saved as '{name}'!**\nUse `!pvn {name}` to play."
+        except Exception as e:
+            return f"❌ Failed to save from cache: {str(e)}"
+
+    # 2. Use Direct Media Download (The "Master Key")
+    print(f"\n📥 Attempting direct download for VN: {name}")
     try:
         file_path = os.path.join(VN_DATA_DIR, f"{name}.m4a")
         
-        # Download
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-        response = requests.get(vn_url, headers=headers, timeout=30)
-        response.raise_for_status()
+        # instagrapi's official way to download media from a message
+        # This works even if URLs are hidden in the object
+        downloaded_path = cl.direct_media_download(target_msg.id)
         
-        with open(file_path, 'wb') as f:
-            f.write(response.content)
-            
-        print(f"  ✅ Saved to: {file_path}")
-        
-        # Clear cache after saving to prevent accidental reuse
-        if thread_id in _vn_cache:
-            del _vn_cache[thread_id]
-            
-        return f"✅ **Voice note saved as '{name}'!**\nUse `!pvn {name}` to play it anywhere."
+        if downloaded_path and os.path.exists(downloaded_path):
+            # Move to our storage
+            import shutil
+            shutil.move(str(downloaded_path), file_path)
+            print(f"  ✅ Saved to: {file_path}")
+            return f"✅ **Voice note saved as '{name}'!**\nUse `!pvn {name}` to play it anywhere."
         
     except Exception as e:
-        print(f"  ⚠️ Save failed: {e}")
-        return f"❌ Failed to save voice note: {str(e)}"
+        print(f"  ⚠️ Direct download failed: {e}. Trying URL fallback...")
+
+    # 3. URL Fallback (If direct download fails)
+    vn_url = extract_vn_url_from_message(target_msg, cl, robust=True)
+    if vn_url:
+        try:
+            file_path = os.path.join(VN_DATA_DIR, f"{name}.m4a")
+            response = requests.get(vn_url, timeout=30)
+            response.raise_for_status()
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+            return f"✅ **Voice note saved as '{name}'!**\nUse `!pvn {name}` to play."
+        except Exception as e:
+            return f"❌ Failed to save voice note: {str(e)}"
+            
+    return "❌ Could not detect voice note in the replied message. Try again! 🥀"
 
 def handle_pvn_command(query: str, user_id: str, username: str, thread_id: str, cl: Client) -> str:
     """
