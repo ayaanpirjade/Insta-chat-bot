@@ -22,6 +22,19 @@ class VNStorageTests(unittest.TestCase):
         url = vn_storage.extract_vn_url_from_message(msg)
         self.assertEqual(url, 'https://example.com/audio.m4a')
 
+    def test_recursive_url_detection(self):
+        # Deeply nested URL in a custom structure
+        msg = SimpleNamespace(
+            something=SimpleNamespace(
+                nested=[
+                    {'random': 'data'},
+                    {'audio_link': 'https://cdninstagram.com/v/t50/audio_src_123.m4a?token=xyz'}
+                ]
+            )
+        )
+        url = vn_storage.extract_vn_url_from_message(msg)
+        self.assertIn('audio_src_123.m4a', url)
+
     def test_handle_pvn_no_file(self):
         # Mock client
         class FakeClient:
