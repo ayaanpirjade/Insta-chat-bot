@@ -164,17 +164,41 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
         return None
 
 
-def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
+def extract_reel_from_message(msg, cl: Optional[Client] = None) -> Optional[Dict[str, Any]]:
     if not msg:
         return None
     
-    # 1. Check raw_xma
+    # 1. Try to get media info from API if possible (Most Reliable)
+    media_id = None
+    if hasattr(msg, 'clip') and msg.clip:
+        media_id = getattr(msg.clip, 'pk', None) or getattr(msg.clip, 'id', None)
+    elif hasattr(msg, 'media_share') and msg.media_share:
+        media_id = getattr(msg.media_share, 'pk', None) or getattr(msg.media_share, 'id', None)
+    elif hasattr(msg, 'pk'):
+        media_id = msg.pk
+
+    if media_id and cl:
+        try:
+            info = cl.media_info(media_id)
+            if info:
+                code = getattr(info, 'code', None)
+                if code:
+                    return {
+                        'code': code,
+                        'url': f"https://www.instagram.com/reel/{code}/",
+                        'username': getattr(info.user, 'username', '') if hasattr(info, 'user') else '',
+                        'source': 'api'
+                    }
+        except: pass
+
+    # 2. Fallback to existing detection layers
+    # Check raw_xma
     if hasattr(msg, 'raw_xma') and msg.raw_xma:
         reel_data = extract_reel_from_xma(msg)
         if reel_data:
             return reel_data
     
-    # 2. Check reel_share
+    # Check reel_share
     if hasattr(msg, 'reel_share') and msg.reel_share:
         reel = msg.reel_share
         code = getattr(reel, 'code', None)
@@ -186,7 +210,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                 'source': 'reel_share'
             }
     
-    # 2b. Check clip (direct reel share)
+    # Check clip (direct reel share)
     if hasattr(msg, 'clip') and msg.clip:
         clip = msg.clip
         code = getattr(clip, 'code', None)
@@ -198,7 +222,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                 'source': 'clip'
             }
     
-    # 2c. Check media_share (post/reel share)
+    # Check media_share (post/reel share)
     if hasattr(msg, 'media_share') and msg.media_share:
         share = msg.media_share
         code = getattr(share, 'code', None)
@@ -210,7 +234,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                 'source': 'media_share'
             }
     
-    # 3. Check link
+    # Check link
     if hasattr(msg, 'link') and msg.link:
         url = getattr(msg.link, 'link_url', '')
         if url and 'instagram.com' in url:
@@ -223,7 +247,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                     'source': 'link'
                 }
     
-    # 4. Check text for link
+    # Check text for link
     if hasattr(msg, 'text') and msg.text:
         url = extract_link_from_text(msg.text)
         if url:
@@ -293,7 +317,7 @@ def get_reel_from_reply(cl: Client, thread_id: str, msg) -> Optional[Dict[str, A
         replied = get_replied_message(cl, thread_id, msg)
         if not replied:
             return None
-        return extract_reel_from_message(replied)
+        return extract_reel_from_message(replied, cl)
     except:
         return None
 

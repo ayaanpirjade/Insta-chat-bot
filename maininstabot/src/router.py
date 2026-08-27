@@ -44,7 +44,7 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
 
     # ── 0. Cache Reel if present ──
     if msg:
-        reel_data = reel.extract_reel_from_message(msg)
+        reel_data = reel.extract_reel_from_message(msg, cl)
         if reel_data:
             reel.cache_reel(thread_id, reel_data)
 
