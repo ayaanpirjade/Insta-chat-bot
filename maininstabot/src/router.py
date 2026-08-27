@@ -25,6 +25,7 @@ from . import generate as generate
 from . import evil as evil
 from . import command_toggle as command_toggle
 from . import group_admin as group_admin
+from . import voice_note_storage as vn_storage
 from .command_parser import parse_command
 
 import config
@@ -332,6 +333,13 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
         elif cmd in ["tts", "say"]:
             result = tts.handle_tts_command(args, user_id, username, thread_id, cl)
             return result
+
+        # ── 🎤 VOICE NOTE STORAGE ──
+        elif cmd in ["dvn", "savevn"]:
+            return vn_storage.handle_dvn_command(args, user_id, username, thread_id, cl, msg)
+
+        elif cmd in ["pvn", "playvn"]:
+            return vn_storage.handle_pvn_command(args, user_id, username, thread_id, cl)
 
         # ── 🤖 AI + VOICE ──
         elif cmd in ["speak", "voiceai"]:
