@@ -16,7 +16,7 @@ VN_DATA_DIR = os.path.join(BASE_DIR, "data", "voice_notes")
 os.makedirs(VN_DATA_DIR, exist_ok=True)
 
 def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[str]:
-    """Extract voice note URL with 'God-Mode' exhaustive detection"""
+    """Extract voice note URL with focused media-id detection and deep scanning"""
     try:
         if not msg:
             return None
@@ -25,38 +25,40 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
             if isinstance(obj, dict): return obj.get(key)
             return getattr(obj, key, None)
 
-        # 1. Exhaustive ID collection for API fallback
-        potential_ids = []
+        # 1. Targeted ID collection (Avoid message item_ids)
+        media_ids = []
         
-        # Check direct properties
-        for attr in ['pk', 'id', 'item_id', 'media_id']:
-            val = get_val(msg, attr)
-            if val: potential_ids.append(str(val))
-            
-        # Check nested media properties
-        for container in ['voice_media', 'clip', 'media_share', 'media']:
+        # Check voice_media container specifically
+        vm = get_val(msg, 'voice_media')
+        if vm:
+            # Try to get media_id or pk from voice_media
+            for k in ['media_id', 'pk', 'id']:
+                v = get_val(vm, k)
+                if v: media_ids.append(str(v))
+            # Try deeper in media object
+            m = get_val(vm, 'media')
+            if m:
+                for k in ['pk', 'id', 'media_id']:
+                    v = get_val(m, k)
+                    if v: media_ids.append(str(v))
+
+        # Check other media containers
+        for container in ['clip', 'media_share']:
             c_obj = get_val(msg, container)
             if c_obj:
-                for attr in ['pk', 'id', 'media_id']:
-                    val = get_val(c_obj, attr)
-                    if val: potential_ids.append(str(val))
-                # Even deeper
-                m_obj = get_val(c_obj, 'media')
-                if m_obj:
-                    for attr in ['pk', 'id', 'media_id']:
-                        val = get_val(m_obj, attr)
-                        if val: potential_ids.append(str(val))
+                for k in ['pk', 'id', 'media_id']:
+                    v = get_val(c_obj, k)
+                    if v: media_ids.append(str(v))
 
-        # 2. Try API with all collected IDs
+        # 2. Try API with valid-looking media PKs
         if cl:
-            for mid in list(set(potential_ids)):
+            for mid in list(set(media_ids)):
                 try:
-                    # Only try IDs that look like Instagram media PKs (long digits)
-                    if mid.isdigit() and len(mid) > 10:
-                        print(f"  🔍 Trying API media_info for ID: {mid}")
+                    # Media PKs are typically digits and not extremely long (unlike item_ids)
+                    if mid.isdigit() and 10 <= len(mid) <= 20:
+                        print(f"  🔍 Fetching fresh media info for ID: {mid}")
                         info = cl.media_info(mid)
                         if info:
-                            # Check all possible URL locations in media info
                             for attr in ['video_url', 'audio_url']:
                                 url = getattr(info, attr, None)
                                 if url: return str(url)
@@ -64,23 +66,18 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
                                 return str(info.video_versions[0].get('url'))
                 except: pass
 
-        # 3. Final Recursive Scan (The Catch-All)
+        # 3. Recursive Deep Scan (Catch-All for embedded URLs)
         def deep_scan(obj, depth=0):
             if depth > 15: return None
             if not obj: return None
             
-            # String URL check
             if isinstance(obj, str):
                 low = obj.lower()
-                # Must look like a URL
                 if low.startswith('http'):
-                    # Check for common audio/video extensions or Instagram specific paths
-                    if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src', 'video_versions', 'dash']) or 'instagram.com' in low:
+                    if any(x in low for x in ['.m4a', '.mp3', '.mp4', '/audio', 'audio_src', 'video_versions', 'dash']):
                          return obj.replace('\\/', '/').strip('"')
             
-            # Dictionary scan
             if isinstance(obj, dict):
-                # Check priority keys first
                 for k in ['audio_src', 'url', 'video_url', 'audio_url', 'target_url', 'uri']:
                     res = deep_scan(obj.get(k), depth + 1)
                     if res: return res
@@ -88,16 +85,23 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
                     res = deep_scan(v, depth + 1)
                     if res: return res
             
-            # List scan
             if isinstance(obj, (list, tuple)):
                 for item in obj:
                     res = deep_scan(item, depth + 1)
                     if res: return res
             
-            # Object attribute scan
             try:
+                # Prioritize common media attributes
+                for attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions']:
+                    val = getattr(obj, attr, None)
+                    if val:
+                        res = deep_scan(val, depth + 1)
+                        if res: return res
+                
+                # Scan other attributes
                 for attr in dir(obj):
-                    if attr.startswith('_'): continue
+                    if attr.startswith('_') or attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions']: 
+                        continue
                     try:
                         val = getattr(obj, attr)
                         if not val or callable(val): continue
@@ -109,7 +113,7 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None) -> Optional[st
 
         return deep_scan(msg)
     except Exception as e:
-        print(f"  ⚠️ God-Mode extract failed: {e}")
+        print(f"  ⚠️ Extract failed: {e}")
         return None
 
 def handle_dvn_command(query: str, user_id: str, username: str, thread_id: str, cl: Client, msg=None) -> str:
