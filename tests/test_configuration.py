@@ -23,7 +23,7 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(values["BOT_USERNAME"], "manus_automate")
         self.assertEqual(values["POLL_INTERVAL"], "2")
         self.assertEqual(values["AI_PROVIDER"], "groq")
-        self.assertEqual(values["AI_MODEL"], "llama-3.3-70b-versatile")
+        self.assertEqual(values["AI_MODEL"], "deepseek-r1-distill-llama-70b")
         self.assertEqual(values["GROQ_FALLBACK_MODEL"], "openai/gpt-oss-20b")
         self.assertIn("openai/gpt-oss-120b", values["GROQ_FALLBACK_MODELS"])
         self.assertEqual(values["GROUP_AI_MODE"], "false")

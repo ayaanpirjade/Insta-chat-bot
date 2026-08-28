@@ -31,8 +31,9 @@ _last_used: Dict[str, dict] = {}
 
 # ── VALID MODELS (Only working ones) ──
 MODEL_PRIORITY = [
-    "llama-3.3-70b-versatile",   # Best quality
-    "llama-3.1-8b-instant",      # Fast fallback
+    "deepseek-r1-distill-llama-70b", # DeepSeek R1 Uncensored
+    "llama-3.3-70b-versatile",       # Best quality
+    "llama-3.1-8b-instant",          # Fast fallback
 ]
 
 _user_model_index: Dict[str, int] = {}

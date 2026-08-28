@@ -32,7 +32,7 @@ class VNStorageTests(unittest.TestCase):
                 ]
             )
         )
-        url = vn_storage.extract_vn_url_from_message(msg)
+        url = vn_storage.extract_vn_url_from_message(msg, robust=True)
         self.assertIn('audio_src_123.m4a', url)
 
     def test_handle_pvn_no_file(self):

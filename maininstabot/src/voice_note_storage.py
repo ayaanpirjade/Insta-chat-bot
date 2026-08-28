@@ -90,8 +90,9 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None, robust: bool =
                     res = omni_scan(item, depth + 1)
                     if res: return res
             
-            # Safe object scan (avoid dir() on complex objects)
-            if hasattr(obj, '__dict__') or not isinstance(obj, (str, int, float, bool)):
+            # Safe object scan
+            if not isinstance(obj, (str, int, float, bool, dict, list, tuple)):
+                # Try common attributes
                 for attr in ['voice_media', 'media', 'audio', 'clip', 'video_versions', 'audio_src', 'url']:
                     try:
                         val = getattr(obj, attr, None)
@@ -99,6 +100,17 @@ def extract_vn_url_from_message(msg, cl: Optional[Client] = None, robust: bool =
                             res = omni_scan(val, depth + 1)
                             if res: return res
                     except: continue
+                # Try all public attributes as fallback for custom objects (like SimpleNamespace in tests)
+                try:
+                    for attr in dir(obj):
+                        if attr.startswith('_'): continue
+                        try:
+                            val = getattr(obj, attr)
+                            if not val or callable(val): continue
+                            res = omni_scan(val, depth + 1)
+                            if res: return res
+                        except: continue
+                except: pass
             return None
 
         url = omni_scan(msg)

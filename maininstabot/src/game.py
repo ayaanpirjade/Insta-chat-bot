@@ -194,7 +194,7 @@ C. [option C]
 D. [option D]
 Answer: [A/B/C/D]"""
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=config.AI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.9,
             max_tokens=300,
