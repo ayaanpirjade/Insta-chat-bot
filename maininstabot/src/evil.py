@@ -31,9 +31,9 @@ _last_used: Dict[str, dict] = {}
 
 # ── VALID MODELS (Only working ones) ──
 MODEL_PRIORITY = [
-    "deepseek-r1-distill-llama-70b", # DeepSeek R1 Uncensored
-    "llama-3.3-70b-versatile",       # Best quality
-    "llama-3.1-8b-instant",          # Fast fallback
+    "openai/gpt-oss-120b",           # Current Groq Flagship Reasoning
+    "openai/gpt-oss-20b",            # Fast Reasoning
+    "groq/compound",                 # System Fallback
 ]
 
 _user_model_index: Dict[str, int] = {}
