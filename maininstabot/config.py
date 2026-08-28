@@ -23,13 +23,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-AI_MODEL = os.getenv("AI_MODEL", "qwen-qwq-32b")
-GROQ_FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-120b")
+AI_MODEL = os.getenv("AI_MODEL", "openai/gpt-oss-120b")
+GROQ_FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "qwen/qwen3.8-27b")
 GROQ_FALLBACK_MODELS = [
     item.strip()
     for item in os.getenv(
         "GROQ_FALLBACK_MODELS",
-        "openai/gpt-oss-120b,openai/gpt-oss-20b,groq/compound",
+        "qwen/qwen3.8-27b,openai/gpt-oss-20b,groq/compound",
     ).split(",")
     if item.strip()
 ]
