@@ -31,9 +31,9 @@ _last_used: Dict[str, dict] = {}
 
 # ── VALID MODELS (Only working ones) ──
 MODEL_PRIORITY = [
-    "openai/gpt-oss-120b",           # Current Groq Flagship Reasoning
+    "qwen-qwq-32b",                  # Qwen Reasoning (Best for Uncensored)
+    "openai/gpt-oss-120b",           # Massive Open-Weight Flagship
     "openai/gpt-oss-20b",            # Fast Reasoning
-    "groq/compound",                 # System Fallback
 ]
 
 _user_model_index: Dict[str, int] = {}
