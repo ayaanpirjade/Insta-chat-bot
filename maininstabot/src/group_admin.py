@@ -1,4 +1,4 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[...] 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[...]
 #          👑 AYAAN AI - Group Commands
 #          ULTRA-FAST VERSION - Clean Version
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[...]
@@ -367,9 +367,21 @@ def handle_remove_command(query: str, user_id: str, username: str, thread_id: st
             return permission_error
 
         try:
-            # Use the resilient helper which will try multiple endpoints and
-            # surface clear errors when Instagram returns 404s.
-            remove_user_from_thread(cl, thread_id, target_user_id, debug=False)
+            # Prefer instagrapi high-level API if available (less brittle)
+            direct_remove = getattr(cl, "direct_thread_remove_user", None)
+            if callable(direct_remove):
+                try:
+                    # try int params first
+                    success = direct_remove(int(thread_id), int(target_user_id))
+                except Exception:
+                    # fallback to str params
+                    success = direct_remove(str(thread_id), str(target_user_id))
+                if success is False:
+                    raise RuntimeError("Instagram returned a failed remove-user response via instagrapi high-level API")
+            else:
+                # Fallback: try multiple private endpoints
+                remove_user_from_thread(cl, thread_id, target_user_id, debug=False)
+
             print(f"  ✅ User removed successfully!")
             return f"✅ **@{target_username} removed from the group!**"
 
