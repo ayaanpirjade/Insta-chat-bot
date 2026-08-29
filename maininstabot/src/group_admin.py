@@ -1,7 +1,7 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[...] 
 #          👑 AYAAN AI - Group Commands
 #          ULTRA-FAST VERSION - Clean Version
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[...]
 
 import os
 import re
@@ -12,6 +12,7 @@ import requests
 from pathlib import Path
 from typing import Optional, Dict, Any
 from instagrapi import Client
+from requests.exceptions import HTTPError
 
 # ── Import ULTRA-FAST name rotator ──
 from .name_rotator_ultra import start as _start_name_cycle, stop_command as _stop_name_cycle_command
@@ -31,6 +32,61 @@ def _group_action_error(action: str, exc: Exception) -> str:
             "The bot account must be a group admin and Instagram must allow this action."
         )
     return f"❌ Failed to {action}: {str(exc)}"
+
+
+def remove_user_from_thread(client: Client, thread_id: str, target_user_id: str, *, debug: bool = False) -> Dict[str, Any]:
+    """Try multiple candidate private endpoints to remove a user from a group thread.
+
+    Instagram's private API changes frequently; older endpoints like
+    /direct_v2/threads/<thread_id>/remove_user/ may return 404. This helper
+    attempts several plausible variants and raises a RuntimeError if all
+    attempts return 404 or equivalent not-found responses.
+
+    Returns the response dict from the first successful endpoint.
+    Raises RuntimeError when all endpoints are missing or access is denied.
+    """
+    attempts = [
+        ("remove_user", {"_uuid": getattr(client, "uuid", ""), "user_ids": json.dumps([str(target_user_id)])}),
+        ("remove_participants", {"_uuid": getattr(client, "uuid", ""), "user_ids": json.dumps([str(target_user_id)])}),
+        ("remove_participant", {"_uuid": getattr(client, "uuid", ""), "user_id": str(target_user_id)}),
+    ]
+
+    last_exc: Optional[Exception] = None
+    for ep_name, data in attempts:
+        url = f"direct_v2/threads/{thread_id}/{ep_name}/"
+        try:
+            if debug:
+                print(f"[remove_user_from_thread] Trying endpoint {url} with data={data}")
+            # Use the same signature as other calls in this module
+            res = client.private_request(url, data=data, with_signature=False)
+            if debug:
+                print(f"[remove_user_from_thread] Success on {url}: {res}")
+            return res
+
+        except Exception as e:
+            # Extract status code when possible
+            status = None
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                status = getattr(resp, "status_code", None)
+            # requests HTTPError
+            if isinstance(e, HTTPError) and getattr(e.response, "status_code", None) is not None:
+                status = e.response.status_code
+
+            print(f"[remove_user_from_thread] Attempt {url} failed: {repr(e)} (status={status})")
+            last_exc = e
+
+            # If not found, try next candidate. If permission issue or other codes, raise.
+            if status == 404 or (isinstance(e, Exception) and "not found" in str(e).lower()):
+                continue
+            # For 403 / permission errors, raise immediately so caller can handle
+            if status == 403 or ("permission" in str(e).lower() or "admin" in str(e).lower()):
+                raise
+            # For rate limits or other transient errors, raise to let caller decide
+            raise
+
+    # All attempts failed with 404/not-found
+    raise RuntimeError("All candidate endpoints returned 404 or not-found; the Instagram private API endpoint to remove users may have changed or access is denied.") from last_exc
 
 
 # ── !nc - Start Ultra-Fast Name Rotation ──
@@ -311,15 +367,21 @@ def handle_remove_command(query: str, user_id: str, username: str, thread_id: st
             return permission_error
 
         try:
-            cl.private_request(
-                f"direct_v2/threads/{thread_id}/remove_user/",
-                data={"_uuid": cl.uuid, "user_ids": json.dumps([str(target_user_id)])},
-                with_signature=False,
-            )
+            # Use the resilient helper which will try multiple endpoints and
+            # surface clear errors when Instagram returns 404s.
+            remove_user_from_thread(cl, thread_id, target_user_id, debug=False)
             print(f"  ✅ User removed successfully!")
             return f"✅ **@{target_username} removed from the group!**"
 
+        except RuntimeError as re_err:
+            # All endpoints returned 404 or not-found. Log and return friendly message.
+            print(f"  ⚠️ Endpoint not available: {re_err}")
+            return (
+                "❌ Unable to remove user: Instagram's private API endpoint to remove group "
+                "members appears to be unavailable. Please remove the user manually or make sure the bot is a group admin."
+            )
         except Exception as e:
+            # Other errors: permissions, rate limits, etc.
             print(f"  ⚠️ Failed: {e}")
             return _group_action_error(f"remove @{target_username}", e)
 
@@ -457,7 +519,7 @@ def handle_groupadmins_command(thread_id: str, cl: Client) -> Optional[str]:
         if not admin_names:
             admin_names = ["No admins found"]
 
-        response = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n       👑 GROUP ADMINS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        response = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n       👑 GROUP ADMINS\n━━━━━━━━━━━━━━━━━[...]"
         for admin in admin_names:
             response += f"👤 {admin}\n"
         response += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
