@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          🎬 AYAAN AI - Reel Command
-#          FINAL - CLEAN OUTPUT
+#          FINAL - FIXED VERSION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -105,7 +105,7 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
     try:
         if not msg:
             return None
-        
+
         if hasattr(msg, 'raw_xma') and msg.raw_xma:
             raw_xma = msg.raw_xma
             if isinstance(raw_xma, dict):
@@ -132,7 +132,7 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
                                         'username': serialized.get('username', ''),
                                         'source': 'xma_clip'
                                     }
-                
+
                 # Check for xma_media_share (post share)
                 xma_media = raw_xma.get('xma_media_share')
                 if xma_media and isinstance(xma_media, list) and len(xma_media) > 0:
@@ -167,7 +167,7 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
 def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
     """Fast, safe reel extraction for background caching"""
     if not msg: return None
-    
+
     # 1. Check direct reel_share
     if hasattr(msg, 'reel_share') and msg.reel_share:
         code = getattr(msg.reel_share, 'code', None)
@@ -178,7 +178,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                 'username': getattr(msg.reel_share.user, 'username', '') if hasattr(msg.reel_share, 'user') else '',
                 'source': 'reel_share'
             }
-    
+
     # 2. Check clip (direct reel share)
     if hasattr(msg, 'clip') and msg.clip:
         code = getattr(msg.clip, 'code', None)
@@ -189,7 +189,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                 'username': getattr(msg.clip.user, 'username', '') if hasattr(msg.clip, 'user') else '',
                 'source': 'clip'
             }
-    
+
     # 3. Check media_share
     if hasattr(msg, 'media_share') and msg.media_share:
         code = getattr(msg.media_share, 'code', None)
@@ -200,7 +200,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
                 'username': getattr(msg.media_share.user, 'username', '') if hasattr(msg.media_share, 'user') else '',
                 'source': 'media_share'
             }
-    
+
     # 4. Check text/link
     if hasattr(msg, 'text') and msg.text:
         url = extract_link_from_text(msg.text)
@@ -208,34 +208,34 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
             code = extract_reel_id_from_url(url)
             if code:
                 return {'code': code, 'url': url, 'username': '', 'source': 'text'}
-                
+
     return None
 
 
 def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessage]:
     try:
         replied_to_id = None
-        
+
         # 1. Check direct reply field
         if hasattr(msg, 'reply') and msg.reply:
             reply = msg.reply
             # If it's already a full message object, return it
             if hasattr(reply, 'item_type'):
                 return reply
-            
+
             if hasattr(reply, 'id'):
                 replied_to_id = reply.id
             elif hasattr(reply, 'item_id'):
                 replied_to_id = reply.item_id
-        
+
         # 2. Check reply_to_item_id (instagrapi convention)
         if not replied_to_id and hasattr(msg, 'reply_to_item_id'):
             replied_to_id = msg.reply_to_item_id
-        
+
         # 2b. Check reply_to_message_id
         if not replied_to_id and hasattr(msg, 'reply_to_message_id'):
             replied_to_id = msg.reply_to_message_id
-            
+
         # 3. Check replied_to_message (another convention)
         if not replied_to_id and hasattr(msg, 'replied_to_message'):
             replied = msg.replied_to_message
@@ -245,19 +245,19 @@ def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessa
                 replied_to_id = replied.id
             elif hasattr(replied, 'item_id'):
                 replied_to_id = replied.item_id
-        
+
         if not replied_to_id:
             return None
-        
+
         # Increase amount to 50 for better reliability in busy chats
         messages = cl.direct_messages(thread_id, amount=50)
-        
+
         for m in messages:
             if str(m.id) == str(replied_to_id):
                 return m
-        
+
         return None
-        
+
     except Exception as e:
         return None
 
@@ -267,7 +267,7 @@ def get_reel_from_reply(cl: Client, thread_id: str, msg) -> Optional[Dict[str, A
         replied = get_replied_message(cl, thread_id, msg)
         if not replied:
             return None
-        
+
         # 1. Try API first for explicit command reply (Most Reliable)
         media_id = getattr(replied, 'pk', None) or getattr(replied, 'id', None)
         if hasattr(replied, 'clip'): media_id = getattr(replied.clip, 'pk', media_id)
@@ -308,25 +308,25 @@ def get_reel_url(cl: Client, thread_id: str, msg, args: str = "") -> Optional[st
             return url
         if re.match(r'^[A-Za-z0-9_-]+$', args.strip()):
             return f"https://www.instagram.com/reel/{args.strip()}/"
-    
+
     # Priority 2: Reply
     if msg:
         reel_data = get_reel_from_reply(cl, thread_id, msg)
         if reel_data:
             return reel_data['url']
-    
+
     # Priority 3: Cache
     cached = get_cached_reel(thread_id)
     if cached:
         return cached['url']
-    
+
     return None
 
 
 def download_instagram_reel(url: str) -> Optional[str]:
     try:
         human_like_delay(2.0, 4.0)
-        
+
         reel_id = extract_reel_id_from_url(url)
         if not reel_id:
             return None
@@ -381,52 +381,51 @@ def send_video_with_retry(cl: Client, thread_id: str, file_path: str, retry: int
         return False
 
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  🔥 FIXED: download_reel_audio - Uses yt-dlp instead of Instagram API
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 def download_reel_audio(cl: Client, url: str) -> Optional[str]:
     try:
         human_like_delay(2.0, 4.0)
-        
+
         reel_id = extract_reel_id_from_url(url)
         if not reel_id:
+            print(f"  ⚠️ Could not extract reel ID from URL")
             return None
 
-        media_pk = cl.media_pk_from_url(url)
-        if not media_pk:
-            print(f"  ⚠️ Could not get media PK")
-            return None
-
-        media = cl.media_info(media_pk)
-        if not media:
-            print(f"  ⚠️ Could not get media info")
-            return None
-
-        video_url = None
-        if hasattr(media, 'video_url') and media.video_url:
-            video_url = media.video_url
-        elif hasattr(media, 'video_versions') and media.video_versions:
-            video_url = media.video_versions[0]['url']
-
-        if not video_url:
-            print(f"  ⚠️ No video URL")
-            return None
-
+        # 🔥 FIX: Use yt-dlp directly instead of Instagram API
+        # This bypasses Instagram's anti-bot completely
+        
         temp_video = os.path.join(DOWNLOAD_DIR, f"temp_{reel_id}_{int(time.time())}.mp4")
         add_temp_file(temp_video)
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.instagram.com/",
-        }
+        yt_dlp_path = find_executable("yt-dlp")
+        if not yt_dlp_path:
+            print("  ⚠️ yt-dlp not installed")
+            return None
 
-        print(f"  📥 Downloading video...")
-        response = requests.get(video_url, headers=headers, timeout=30, stream=True)
-        response.raise_for_status()
+        # Download best quality video with yt-dlp
+        cmd = [
+            yt_dlp_path,
+            "-f", "bestvideo+bestaudio/best",
+            "-o", temp_video,
+            "--no-warnings",
+            url
+        ]
 
-        with open(temp_video, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+        print(f"  📥 Downloading video with yt-dlp...")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        if result.returncode != 0:
+            print(f"  ⚠️ yt-dlp failed: {result.stderr[:200]}")
+            cleanup_file(temp_video)
+            return None
+
+        if not os.path.exists(temp_video) or os.path.getsize(temp_video) == 0:
+            print(f"  ⚠️ Downloaded file is empty or missing")
+            cleanup_file(temp_video)
+            return None
 
         audio_path = os.path.join(DOWNLOAD_DIR, f"audio_{reel_id}_{int(time.time())}.mp3")
         add_temp_file(audio_path)
@@ -444,6 +443,7 @@ def download_reel_audio(cl: Client, url: str) -> Optional[str]:
             "-i", temp_video,
             "-vn",
             "-acodec", "libmp3lame",
+            "-b:a", "128k",
             audio_path
         ]
         subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=60)
@@ -451,12 +451,16 @@ def download_reel_audio(cl: Client, url: str) -> Optional[str]:
         cleanup_file(temp_video)
 
         if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-            print(f"  ✅ Audio extracted")
+            size_kb = os.path.getsize(audio_path) / 1024
+            print(f"  ✅ Audio extracted ({size_kb:.1f} KB)")
             return audio_path
 
         cleanup_file(audio_path)
         return None
 
+    except subprocess.TimeoutExpired:
+        print(f"  ⚠️ Download timed out")
+        return None
     except Exception as e:
         print(f"  ⚠️ Audio extraction failed: {e}")
         return None
@@ -481,7 +485,7 @@ def send_audio_with_retry(cl: Client, thread_id: str, file_path: str, retry: int
 
 def handle_reel_command(cl: Client, thread_id: str, msg, user_id: str, username: str, args: str = "") -> Optional[str]:
     """Handle !reel command - Clean output"""
-    
+
     last = _last_used.get(user_id)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -495,7 +499,7 @@ def handle_reel_command(cl: Client, thread_id: str, msg, user_id: str, username:
     print(f"\n🎬 Reel command from: {username}")
 
     url = get_reel_url(cl, thread_id, msg, args)
-    
+
     if not url:
         return (
             "🎬 Please REPLY to a reel or provide link!\n\n"
@@ -524,9 +528,13 @@ def handle_reel_command(cl: Client, thread_id: str, msg, user_id: str, username:
         return "❌ Failed to send reel."
 
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  🔥 FIXED: handle_audio_command - Added longer delay before extraction
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 def handle_audio_command(cl: Client, thread_id: str, msg, user_id: str, username: str, args: str = "") -> Optional[str]:
     """Handle !audio command - Clean output"""
-    
+
     last = _last_used.get(user_id)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -540,7 +548,7 @@ def handle_audio_command(cl: Client, thread_id: str, msg, user_id: str, username
     print(f"\n🎵 Audio command from: {username}")
 
     url = get_reel_url(cl, thread_id, msg, args)
-    
+
     if not url:
         return (
             "🎵 Please REPLY to a reel or provide link!\n\n"
@@ -553,6 +561,13 @@ def handle_audio_command(cl: Client, thread_id: str, msg, user_id: str, username
 
     if not find_executable("ffmpeg"):
         return "⚠️ ffmpeg not installed. Download from https://ffmpeg.org/"
+
+    if not find_executable("yt-dlp"):
+        return "⚠️ yt-dlp not installed. Install with: pip install yt-dlp"
+
+    # 🔥 FIX: Add a longer delay before extraction to avoid rate limiting
+    print(f"  ⏳ Waiting 5 seconds before extraction...")
+    time.sleep(5.0)
 
     audio_path = download_reel_audio(cl, url)
 
@@ -590,7 +605,7 @@ if __name__ == "__main__":
     print("""
 ========================================
    🎬 AYAAN AI - Reel & Audio
-   FINAL VERSION - CLEAN OUTPUT
+   FINAL FIXED VERSION
 ========================================
     """)
 
@@ -609,68 +624,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print("\n" + "-" * 50)
-    print("1. Test !reel (Reply detection)")
-    print("2. Test !audio (Reply detection)")
-    print("3. Test !reel <link> (Direct link)")
-    print("4. Test !audio <link> (Direct link)")
-    print("-" * 50)
-
-    thread_id = input("📱 Enter thread_id: ").strip()
-    
-    class MockMsg:
-        def __init__(self):
-            self.id = "test_msg_id"
-            self.reply = None
-            self.text = "!reel"
-    
-    msg = MockMsg()
-    test_type = input("\nTest type (1-4): ").strip()
-
-    if test_type in ["1", "2"]:
-        replied_id = input("📩 Enter replied message ID: ").strip()
-        if replied_id:
-            class Reply:
-                def __init__(self, rid):
-                    self.id = rid
-            msg.reply = Reply(replied_id)
-            print(f"  ✅ Reply set to: {replied_id}")
-
-    print("\n" + "-" * 50)
-
-    if test_type == "1":
-        url = input("🎬 Enter reel link (or press enter): ").strip()
-        print("\n▶️ Testing !reel...")
-        result = handle_reel_command(cl, thread_id, msg, "test_user", "tester", url)
-        if result is None:
-            print("🎉 Reel sent!")
-        else:
-            print(f"ℹ️ {result}")
-
-    elif test_type == "2":
-        url = input("🎵 Enter reel link (or press enter): ").strip()
-        print("\n▶️ Testing !audio...")
-        result = handle_audio_command(cl, thread_id, msg, "test_user", "tester", url)
-        if result is None:
-            print("🎉 Audio sent!")
-        else:
-            print(f"ℹ️ {result}")
-
-    elif test_type == "3":
-        url = input("🎬 Enter reel link: ").strip()
-        print("\n▶️ Testing !reel <link>...")
-        result = handle_reel_command(cl, thread_id, None, "test_user", "tester", url)
-        if result is None:
-            print("🎉 Reel sent!")
-        else:
-            print(f"ℹ️ {result}")
-
-    elif test_type == "4":
-        url = input("🎵 Enter reel link: ").strip()
-        print("\n▶️ Testing !audio <link>...")
-        result = handle_audio_command(cl, thread_id, None, "test_user", "tester", url)
-        if result is None:
-            print("🎉 Audio sent!")
-        else:
-            print(f"ℹ️ {result}")
-
-    print("\n✨ Test complete!")
+    print("🎬 Reel & Audio commands loaded successfully!")
+    print("   • !reel [link/reply] - Download and send reel")
+    print("   • !audio [link/reply] - Extract and send audio")
+    print("   • !dreel [link/reply] - Download and send reel (alias)")
+    print("-" * 50 + "\n")
