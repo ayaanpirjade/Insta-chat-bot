@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          🎬 AYAAN AI - Reel Command
-#          FINAL - FIXED VERSION
+#          FINAL - FIXED VERSION (No API Calls!)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -21,7 +21,6 @@ from instagrapi.types import DirectMessage
 # ── Constants ──
 COOLDOWN_SECONDS = 30
 _last_used: Dict[str, float] = {}
-_last_request_time: float = 0
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -61,14 +60,6 @@ def cleanup_file(file_path: str):
 
 def find_executable(name: str) -> Optional[str]:
     return shutil.which(name)
-
-
-def ensure_request_gap():
-    global _last_request_time
-    elapsed = time.time() - _last_request_time
-    if elapsed < 3.0:
-        time.sleep(3.0 - elapsed + random.uniform(0, 0.5))
-    _last_request_time = time.time()
 
 
 def human_like_delay(min_sec: float = 2.0, max_sec: float = 5.0):
@@ -148,7 +139,6 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
                             target_url = serialized.get('target_url')
                             if target_url:
                                 target_url = target_url.replace('\\/', '/')
-                                # Check if it's a reel or post
                                 if '/reel/' in target_url or '/p/' in target_url:
                                     code = extract_reel_id_from_url(target_url)
                                     if code:
@@ -165,7 +155,6 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
 
 
 def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
-    """Fast, safe reel extraction for background caching"""
     if not msg: return None
 
     # 1. Check direct reel_share
@@ -216,27 +205,21 @@ def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessa
     try:
         replied_to_id = None
 
-        # 1. Check direct reply field
         if hasattr(msg, 'reply') and msg.reply:
             reply = msg.reply
-            # If it's already a full message object, return it
             if hasattr(reply, 'item_type'):
                 return reply
-
             if hasattr(reply, 'id'):
                 replied_to_id = reply.id
             elif hasattr(reply, 'item_id'):
                 replied_to_id = reply.item_id
 
-        # 2. Check reply_to_item_id (instagrapi convention)
         if not replied_to_id and hasattr(msg, 'reply_to_item_id'):
             replied_to_id = msg.reply_to_item_id
 
-        # 2b. Check reply_to_message_id
         if not replied_to_id and hasattr(msg, 'reply_to_message_id'):
             replied_to_id = msg.reply_to_message_id
 
-        # 3. Check replied_to_message (another convention)
         if not replied_to_id and hasattr(msg, 'replied_to_message'):
             replied = msg.replied_to_message
             if hasattr(replied, 'item_type'):
@@ -249,13 +232,10 @@ def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessa
         if not replied_to_id:
             return None
 
-        # Increase amount to 50 for better reliability in busy chats
         messages = cl.direct_messages(thread_id, amount=50)
-
         for m in messages:
             if str(m.id) == str(replied_to_id):
                 return m
-
         return None
 
     except Exception as e:
@@ -268,10 +248,11 @@ def get_reel_from_reply(cl: Client, thread_id: str, msg) -> Optional[Dict[str, A
         if not replied:
             return None
 
-        # 1. Try API first for explicit command reply (Most Reliable)
         media_id = getattr(replied, 'pk', None) or getattr(replied, 'id', None)
-        if hasattr(replied, 'clip'): media_id = getattr(replied.clip, 'pk', media_id)
-        elif hasattr(replied, 'media_share'): media_id = getattr(replied.media_share, 'pk', media_id)
+        if hasattr(replied, 'clip'):
+            media_id = getattr(replied.clip, 'pk', media_id)
+        elif hasattr(replied, 'media_share'):
+            media_id = getattr(replied.media_share, 'pk', media_id)
 
         if media_id and cl:
             try:
@@ -283,9 +264,9 @@ def get_reel_from_reply(cl: Client, thread_id: str, msg) -> Optional[Dict[str, A
                         'username': getattr(info.user, 'username', ''),
                         'source': 'api'
                     }
-            except: pass
+            except:
+                pass
 
-        # 2. Fallback to local extraction
         return extract_reel_from_message(replied)
     except:
         return None
@@ -301,7 +282,6 @@ def get_cached_reel(thread_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_reel_url(cl: Client, thread_id: str, msg, args: str = "") -> Optional[str]:
-    # Priority 1: Arguments
     if args:
         url = extract_link_from_text(args)
         if url:
@@ -309,13 +289,11 @@ def get_reel_url(cl: Client, thread_id: str, msg, args: str = "") -> Optional[st
         if re.match(r'^[A-Za-z0-9_-]+$', args.strip()):
             return f"https://www.instagram.com/reel/{args.strip()}/"
 
-    # Priority 2: Reply
     if msg:
         reel_data = get_reel_from_reply(cl, thread_id, msg)
         if reel_data:
             return reel_data['url']
 
-    # Priority 3: Cache
     cached = get_cached_reel(thread_id)
     if cached:
         return cached['url']
@@ -323,66 +301,8 @@ def get_reel_url(cl: Client, thread_id: str, msg, args: str = "") -> Optional[st
     return None
 
 
-def download_instagram_reel(url: str) -> Optional[str]:
-    try:
-        human_like_delay(2.0, 4.0)
-
-        reel_id = extract_reel_id_from_url(url)
-        if not reel_id:
-            return None
-
-        filename = os.path.join(DOWNLOAD_DIR, f"reel_{reel_id}_{int(time.time())}.mp4")
-        add_temp_file(filename)
-
-        yt_dlp_path = find_executable("yt-dlp")
-        if not yt_dlp_path:
-            print("  ⚠️ yt-dlp not installed")
-            return None
-
-        cmd = [
-            yt_dlp_path,
-            "-f", "bestvideo+bestaudio/best",
-            "-o", filename,
-            "--no-warnings",
-            url
-        ]
-
-        print(f"  📥 Downloading reel...")
-        subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-
-        if os.path.exists(filename) and os.path.getsize(filename) > 0:
-            size_mb = os.path.getsize(filename) / (1024 * 1024)
-            print(f"  ✅ Downloaded ({size_mb:.1f} MB)")
-            return filename
-
-        cleanup_file(filename)
-        return None
-
-    except Exception as e:
-        print(f"  ⚠️ Download failed: {e}")
-        return None
-
-
-def send_video_with_retry(cl: Client, thread_id: str, file_path: str, retry: int = 0) -> bool:
-    try:
-        human_like_delay(2.0, 4.0)
-        cl.direct_send_video(Path(file_path), thread_ids=[str(thread_id)])
-        print(f"  ✅ Video sent!")
-        return True
-    except Exception as e:
-        if retry < 2:
-            human_like_delay(5.0, 10.0)
-            try:
-                cl.direct_send(Path(file_path), thread_ids=[str(thread_id)])
-                print(f"  ✅ Video sent as file!")
-                return True
-            except:
-                return send_video_with_retry(cl, thread_id, file_path, retry + 1)
-        return False
-
-
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  🔥 FIXED: download_reel_audio - Uses yt-dlp instead of Instagram API
+#  🔥 FIXED: download_reel_audio - COMPLETELY NO API!
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def download_reel_audio(cl: Client, url: str) -> Optional[str]:
@@ -394,9 +314,6 @@ def download_reel_audio(cl: Client, url: str) -> Optional[str]:
             print(f"  ⚠️ Could not extract reel ID from URL")
             return None
 
-        # 🔥 FIX: Use yt-dlp directly instead of Instagram API
-        # This bypasses Instagram's anti-bot completely
-        
         temp_video = os.path.join(DOWNLOAD_DIR, f"temp_{reel_id}_{int(time.time())}.mp4")
         add_temp_file(temp_video)
 
@@ -405,7 +322,7 @@ def download_reel_audio(cl: Client, url: str) -> Optional[str]:
             print("  ⚠️ yt-dlp not installed")
             return None
 
-        # Download best quality video with yt-dlp
+        # Download with yt-dlp - NO API CALLS!
         cmd = [
             yt_dlp_path,
             "-f", "bestvideo+bestaudio/best",
@@ -466,6 +383,64 @@ def download_reel_audio(cl: Client, url: str) -> Optional[str]:
         return None
 
 
+def download_instagram_reel(url: str) -> Optional[str]:
+    try:
+        human_like_delay(2.0, 4.0)
+
+        reel_id = extract_reel_id_from_url(url)
+        if not reel_id:
+            return None
+
+        filename = os.path.join(DOWNLOAD_DIR, f"reel_{reel_id}_{int(time.time())}.mp4")
+        add_temp_file(filename)
+
+        yt_dlp_path = find_executable("yt-dlp")
+        if not yt_dlp_path:
+            print("  ⚠️ yt-dlp not installed")
+            return None
+
+        cmd = [
+            yt_dlp_path,
+            "-f", "bestvideo+bestaudio/best",
+            "-o", filename,
+            "--no-warnings",
+            url
+        ]
+
+        print(f"  📥 Downloading reel...")
+        subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        if os.path.exists(filename) and os.path.getsize(filename) > 0:
+            size_mb = os.path.getsize(filename) / (1024 * 1024)
+            print(f"  ✅ Downloaded ({size_mb:.1f} MB)")
+            return filename
+
+        cleanup_file(filename)
+        return None
+
+    except Exception as e:
+        print(f"  ⚠️ Download failed: {e}")
+        return None
+
+
+def send_video_with_retry(cl: Client, thread_id: str, file_path: str, retry: int = 0) -> bool:
+    try:
+        human_like_delay(2.0, 4.0)
+        cl.direct_send_video(Path(file_path), thread_ids=[str(thread_id)])
+        print(f"  ✅ Video sent!")
+        return True
+    except Exception as e:
+        if retry < 2:
+            human_like_delay(5.0, 10.0)
+            try:
+                cl.direct_send(Path(file_path), thread_ids=[str(thread_id)])
+                print(f"  ✅ Video sent as file!")
+                return True
+            except:
+                return send_video_with_retry(cl, thread_id, file_path, retry + 1)
+        return False
+
+
 def send_audio_with_retry(cl: Client, thread_id: str, file_path: str, retry: int = 0) -> bool:
     try:
         human_like_delay(2.0, 4.0)
@@ -480,12 +455,10 @@ def send_audio_with_retry(cl: Client, thread_id: str, file_path: str, retry: int
 
 
 # ═══════════════════════════════════════════════════════════════
-#  MAIN COMMAND HANDLERS - CLEAN OUTPUT
+#  MAIN COMMAND HANDLERS
 # ═══════════════════════════════════════════════════════════════
 
 def handle_reel_command(cl: Client, thread_id: str, msg, user_id: str, username: str, args: str = "") -> Optional[str]:
-    """Handle !reel command - Clean output"""
-
     last = _last_used.get(user_id)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -494,7 +467,6 @@ def handle_reel_command(cl: Client, thread_id: str, msg, user_id: str, username:
     _last_used[user_id] = time.monotonic()
 
     human_like_delay(1.0, 3.0)
-    ensure_request_gap()
 
     print(f"\n🎬 Reel command from: {username}")
 
@@ -528,13 +500,7 @@ def handle_reel_command(cl: Client, thread_id: str, msg, user_id: str, username:
         return "❌ Failed to send reel."
 
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  🔥 FIXED: handle_audio_command - Added longer delay before extraction
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 def handle_audio_command(cl: Client, thread_id: str, msg, user_id: str, username: str, args: str = "") -> Optional[str]:
-    """Handle !audio command - Clean output"""
-
     last = _last_used.get(user_id)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -543,7 +509,6 @@ def handle_audio_command(cl: Client, thread_id: str, msg, user_id: str, username
     _last_used[user_id] = time.monotonic()
 
     human_like_delay(1.0, 3.0)
-    ensure_request_gap()
 
     print(f"\n🎵 Audio command from: {username}")
 
@@ -565,7 +530,7 @@ def handle_audio_command(cl: Client, thread_id: str, msg, user_id: str, username
     if not find_executable("yt-dlp"):
         return "⚠️ yt-dlp not installed. Install with: pip install yt-dlp"
 
-    # 🔥 FIX: Add a longer delay before extraction to avoid rate limiting
+    # 🔥 FIX: Add delay before extraction to avoid rate limiting
     print(f"  ⏳ Waiting 5 seconds before extraction...")
     time.sleep(5.0)
 
