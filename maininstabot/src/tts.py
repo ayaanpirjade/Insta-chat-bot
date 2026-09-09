@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#          💋 AYAAN AI - SEDUCTIVE MOAN VOICE 💋
-#   !tts & !speak Commands - Samantha API + gTTS Fallback
+#          💋 AYAAN AI - REAL HUMAN SEDUCTIVE VOICE 💋
+#   Edge TTS - Microsoft's FREE Human-like Indian Female Voices
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -10,38 +10,30 @@ import random
 import subprocess
 import shutil
 import logging
-import requests
-import json
+import asyncio
+import edge_tts
 from pathlib import Path
 from typing import Optional, Dict, Any
 from instagrapi import Client
 
-# ── gTTS (Free Fallback) ──
+# ── Install: pip install edge-tts ──
 try:
-    from gtts import gTTS
-    GTTS_AVAILABLE = True
+    import edge_tts
+    EDGE_AVAILABLE = True
 except ImportError:
-    GTTS_AVAILABLE = False
-
-# ── Groq AI ──
-try:
-    from groq import Groq
-    GROQ_AVAILABLE = True
-except ImportError:
-    GROQ_AVAILABLE = False
+    EDGE_AVAILABLE = False
+    print("⚠️ Install edge-tts: pip install edge-tts")
 
 # ── Constants ──
 COOLDOWN_SECONDS = 8
 _last_used: Dict[str, float] = {}
-_last_request_time: float = 0
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# ── Language Support ──
-LANGUAGE_CODES = {
-    "hi": "hi", "en": "en", "ta": "ta", "te": "te", "ml": "ml",
-    "kn": "kn", "ur": "ur", "bn": "bn", "mr": "mr", "gu": "gu",
-    "pa": "pa", "or": "or"
+# ── Language & Voice Mapping ──
+VOICE_MAP = {
+    "en": "en-IN-NeerjaNeural",  # Indian English - Female
+    "hi": "hi-IN-SwaraNeural",   # Hindi - Female
 }
 
 # ── 🌶️ SEDUCTIVE MOAN PHRASES ──
@@ -62,10 +54,8 @@ SEDUCTIVE_SUFFIXES = [
     " my love.", " my dear.", " sexy.", " cutie."
 ]
 
-# ── 🔥 SEDUCTIVE SENTENCE STRUCTURES ──
 def make_seductive_with_moan(text: str) -> str:
     """Make text seductive with moan effects"""
-    
     # Remove existing prefixes/suffixes
     for prefix in SEDUCTIVE_PREFIXES:
         if text.lower().startswith(prefix.lower()):
@@ -74,6 +64,9 @@ def make_seductive_with_moan(text: str) -> str:
     for suffix in SEDUCTIVE_SUFFIXES:
         if text.lower().endswith(suffix.lower()):
             text = text[:-len(suffix)].strip()
+    
+    # Remove emojis for better TTS
+    text = re.sub(r'[^\w\s.,!?]', '', text)
     
     # Add moan effect (50% chance)
     if random.random() < 0.5:
@@ -90,11 +83,7 @@ def make_seductive_with_moan(text: str) -> str:
         suffix = random.choice(SEDUCTIVE_SUFFIXES)
         text = f"{text}{suffix}"
     
-    # Add seductive punctuation
-    text = text.replace("!", "~")
-    text = text.replace("?", "?~")
-    
-    # Add breathy effects (occasional)
+    # Add breathy effects
     if len(text) > 20 and random.random() < 0.3:
         parts = text.split(" ")
         if len(parts) > 3:
@@ -116,93 +105,51 @@ def find_executable(name: str) -> Optional[str]:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  🎤 SAMANTHA API - INDIAN FEMALE VOICE (FREE)
+#  🎤 EDGE TTS - REAL HUMAN VOICE (FREE)
 # ═══════════════════════════════════════════════════════════════
 
-def generate_tts_samantha(text: str, lang: str = "en") -> Optional[str]:
-    """Generate TTS using Samantha API - FREE Indian female voice"""
+async def generate_tts_edge(text: str, lang: str = "en") -> Optional[str]:
+    """Generate TTS using Edge TTS - FREE Human-like voice"""
     try:
-        # Make text seductive with moan
-        seductive_text = make_seductive_with_moan(text)
-        
-        # Clean text for filename
-        safe_text = re.sub(r'[^\w\s-]', '', text[:30]).strip()
-        safe_text = re.sub(r'[-\s]+', '_', safe_text) if safe_text else "speech"
-        filename = os.path.join(DOWNLOAD_DIR, f"samantha_{safe_text}_{int(time.time())}.mp3")
-        
-        print(f"  🔥 Generating seductive Indian female voice...")
-        print(f"  📝 Original: {text[:50]}...")
-        print(f"  💋 Seductive: {seductive_text[:50]}...")
-        print(f"  🌐 Language: {lang}")
-        
-        # Samantha Voice API
-        url = "https://iamsudeep-samanthaai.hf.space/tts"
-        
-        payload = {
-            "text": seductive_text,
-            "lang": lang
-        }
-        
-        print(f"  📡 Sending request to Samantha API...")
-        response = requests.post(url, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            with open(filename, "wb") as f:
-                f.write(response.content)
-            
-            if os.path.exists(filename) and os.path.getsize(filename) > 0:
-                size_kb = os.path.getsize(filename) / 1024
-                print(f"  ✅ Seductive Indian voice generated ({size_kb:.1f} KB) 💋")
-                return filename
-        else:
-            print(f"  ⚠️ Samantha API error: {response.status_code}")
-            if response.text:
-                print(f"  📝 Error: {response.text[:200]}")
-            print("  🔄 Falling back to gTTS...")
-            return generate_tts_gtts(text, lang)
-        
-        return None
-        
-    except Exception as e:
-        print(f"  ⚠️ Samantha API failed: {e}")
-        print("  🔄 Falling back to gTTS...")
-        return generate_tts_gtts(text, lang)
-
-
-# ═══════════════════════════════════════════════════════════════
-#  🆓 gTTS - FREE FALLBACK
-# ═══════════════════════════════════════════════════════════════
-
-def generate_tts_gtts(text: str, lang: str = "en") -> Optional[str]:
-    """Generate TTS using gTTS as fallback with seductive tone"""
-    try:
-        if not GTTS_AVAILABLE:
-            print("  ⚠️ gTTS not installed!")
+        if not EDGE_AVAILABLE:
+            print("  ⚠️ edge-tts not installed!")
             return None
         
-        # Make text seductive
+        # Make text seductive and remove emojis
         seductive_text = make_seductive_with_moan(text)
         
-        # Clean text for filename
+        # Get voice
+        voice = VOICE_MAP.get(lang, "en-IN-NeerjaNeural")
+        
+        # Clean filename
         safe_text = re.sub(r'[^\w\s-]', '', text[:30]).strip()
         safe_text = re.sub(r'[-\s]+', '_', safe_text) if safe_text else "speech"
-        filename = os.path.join(DOWNLOAD_DIR, f"gtts_{safe_text}_{int(time.time())}.mp3")
+        filename = os.path.join(DOWNLOAD_DIR, f"edge_{safe_text}_{int(time.time())}.mp3")
         
-        print(f"  🔊 Using gTTS fallback...")
+        print(f"  🔥 Generating REAL human seductive voice...")
+        print(f"  💋 Text: {seductive_text[:60]}...")
+        print(f"  🎤 Voice: {voice}")
+        print(f"  🌐 Language: {lang}")
         
-        # ✅ SLOW = more seductive, pitch effect via language
-        tts = gTTS(text=seductive_text, lang=lang, slow=True)
-        tts.save(filename)
+        # ✅ Edge TTS - Real human voice
+        communicate = edge_tts.Communicate(
+            text=seductive_text,
+            voice=voice,
+            rate="+0%",
+            volume="+0%"
+        )
+        
+        await communicate.save(filename)
         
         if os.path.exists(filename) and os.path.getsize(filename) > 0:
             size_kb = os.path.getsize(filename) / 1024
-            print(f"  ✅ Voice generated ({size_kb:.1f} KB) - FREE!")
+            print(f"  ✅ REAL human voice generated ({size_kb:.1f} KB) 💋🔥")
             return filename
         
         return None
         
     except Exception as e:
-        print(f"  ⚠️ gTTS failed: {e}")
+        print(f"  ⚠️ Edge TTS failed: {e}")
         return None
 
 
@@ -211,15 +158,18 @@ def generate_tts_gtts(text: str, lang: str = "en") -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════
 
 def generate_tts(text: str, lang: str = "en") -> Optional[str]:
-    """Main TTS function - tries Samantha then falls back to gTTS"""
+    """Main TTS - Edge TTS only (real human voice)"""
     
-    # Try Samantha first (better quality)
-    audio = generate_tts_samantha(text, lang)
-    if audio:
-        return audio
+    # Try Edge TTS
+    try:
+        audio = asyncio.run(generate_tts_edge(text, lang))
+        if audio:
+            return audio
+    except Exception as e:
+        print(f"  ⚠️ Edge TTS error: {e}")
     
-    # Fallback to gTTS
-    return generate_tts_gtts(text, lang)
+    print("  ❌ All TTS engines failed!")
+    return None
 
 
 def convert_to_voice_note(input_path: str) -> Optional[str]:
@@ -256,8 +206,7 @@ def convert_to_voice_note(input_path: str) -> Optional[str]:
 def get_ai_reply(query: str, max_tokens: int = 300, user_id: str = "default", conversation_id: str | None = None) -> Optional[str]:
     """Get a concise reply from AI"""
     try:
-        # Enhanced prompt for seductive responses
-        enhanced_query = f"Give a short, flirty, seductive response in 2-3 sentences to: {query} Make it playful with emojis."
+        enhanced_query = f"Give a short, flirty, seductive response in 2-3 sentences to: {query} Make it playful. Keep it short and sweet."
         
         from . import ai
         reply = ai.ask_ai(
@@ -265,6 +214,11 @@ def get_ai_reply(query: str, max_tokens: int = 300, user_id: str = "default", co
             user_id=user_id,
             conversation_id=conversation_id or f"voice:{user_id}",
         )
+        
+        # Remove emojis for better TTS
+        if reply:
+            reply = re.sub(r'[^\w\s.,!?]', '', reply)
+        
         return reply[:max_tokens] if reply else None
     except Exception as error:
         print(f"  ⚠️ AI failed: {type(error).__name__}")
@@ -276,7 +230,7 @@ def get_ai_reply(query: str, max_tokens: int = 300, user_id: str = "default", co
 # ═══════════════════════════════════════════════════════════════
 
 def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
-    """Handle !tts command - seductive voice note ONLY"""
+    """Handle !tts command - Real human voice ONLY"""
     text = text.strip()
     if not text:
         return "🔊 Please provide text to speak.\nExample: !tts Hello baby"
@@ -284,8 +238,11 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
     if len(text) > 500:
         return "⚠️ Text too long! Max 500 characters."
     
+    # Remove emojis from input
+    text = re.sub(r'[^\w\s.,!?]', '', text)
+    
     lang = detect_language(text)
-    lang_code = LANGUAGE_CODES.get(lang, "en")
+    lang_code = "hi" if lang == "hi" else "en"
     
     # Cooldown check
     last = _last_used.get(user_id)
@@ -295,7 +252,7 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
             return f"⏳ Slow down @{username}! Try again in {round(COOLDOWN_SECONDS - elapsed, 1)}s."
     _last_used[user_id] = time.monotonic()
     
-    print(f"\n🔥 Processing TTS with seductive moan voice: {text[:50]}...")
+    print(f"\n🔥 Processing REAL human voice: {text[:50]}...")
     
     # Generate TTS
     audio_path = generate_tts(text, lang_code)
@@ -314,15 +271,13 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
             pass
     
     if not voice_path or not os.path.exists(voice_path):
-        return f"❌ Failed to convert audio.\n\nText: {text[:200]}"
+        return f"❌ Failed to convert audio."
     
     print(f"  📤 Sending voice note...")
     try:
-        # Send ONLY voice note
         cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
         print(f"  ✅ Voice note sent! 💋🔥")
         
-        # Cleanup
         try:
             if os.path.exists(voice_path):
                 os.remove(voice_path)
@@ -337,13 +292,16 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
 
 
 def handle_speak_command(query: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
-    """Handle !speak command - AI Reply + Seductive Voice Note ONLY"""
+    """Handle !speak command - AI Reply + Real Human Voice ONLY"""
     query = query.strip()
     if not query:
         return "🔊 Please ask something.\nExample: !speak Tell me something interesting"
     
     if len(query) > 300:
         return "⚠️ Question too long! Max 300 characters."
+    
+    # Remove emojis from query
+    query = re.sub(r'[^\w\s.,!?]', '', query)
     
     # Cooldown check
     last = _last_used.get(user_id)
@@ -353,7 +311,7 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
             return f"⏳ Slow down @{username}! Try again in {round(COOLDOWN_SECONDS - elapsed, 1)}s."
     _last_used[user_id] = time.monotonic()
     
-    print(f"\n🔥 Processing speak with seductive moan voice: {query[:50]}...")
+    print(f"\n🔥 Processing real human voice: {query[:50]}...")
     
     # Get AI reply
     reply = get_ai_reply(query, user_id=user_id, conversation_id=f"{thread_id}:{user_id}")
@@ -361,18 +319,20 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
     if not reply:
         return "❌ Failed to get AI reply."
     
-    # Generate seductive voice
+    # Remove emojis from reply
+    reply = re.sub(r'[^\w\s.,!?]', '', reply)
+    
+    # Generate voice
     lang = detect_language(reply)
-    lang_code = LANGUAGE_CODES.get(lang, "en")
+    lang_code = "hi" if lang == "hi" else "en"
     
     audio_path = generate_tts(reply, lang_code)
     
     if not audio_path:
-        return f"❌ Voice generation failed.\n\nAI Reply: {reply[:200]}"
+        return f"❌ Voice generation failed."
     
     voice_path = convert_to_voice_note(audio_path)
     
-    # Cleanup MP3
     if audio_path != voice_path and os.path.exists(audio_path):
         try:
             os.remove(audio_path)
@@ -380,14 +340,12 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
             pass
     
     if not voice_path or not os.path.exists(voice_path):
-        return f"❌ Voice conversion failed.\n\nAI Reply: {reply[:200]}"
+        return f"❌ Voice conversion failed."
     
     try:
-        # Send ONLY voice note
         cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
         print(f"  ✅ Voice note sent! 💋🔥")
         
-        # Cleanup
         try:
             if os.path.exists(voice_path):
                 os.remove(voice_path)
@@ -418,8 +376,8 @@ if __name__ == "__main__":
     
     print("""
 ========================================
-   💋 AYAAN AI - SEDUCTIVE MOAN VOICE 💋
-    Samantha API + gTTS Fallback
+   💋 AYAAN AI - REAL HUMAN VOICE 💋
+    Edge TTS - Indian Female Voice
 ========================================
     """)
     
@@ -439,7 +397,7 @@ if __name__ == "__main__":
         sys.exit(1)
     
     print("\n" + "-" * 50)
-    print("1. Test !tts (Seductive Moan TTS)")
+    print("1. Test !tts (Real Human Voice)")
     print("2. Test !speak (AI Voice - ONLY Voice Note)")
     choice = input("Choose (1/2): ").strip()
     
@@ -447,23 +405,23 @@ if __name__ == "__main__":
     
     if choice == "1":
         text = input("🔊 Enter text: ").strip()
-        print("\n▶️ Testing !tts with seductive moan voice...")
+        print("\n▶️ Testing real human voice...")
         print("-" * 50)
         result = handle_tts_command(text, "test_user", "tester", thread_id, cl)
         print("-" * 50)
         if result is None:
-            print("🎉 Seductive moan voice sent! 💋🔥")
+            print("🎉 Real human voice sent! 💋🔥")
         else:
             print(f"ℹ️ {result}")
             
     elif choice == "2":
         query = input("🔊 Ask something: ").strip()
-        print("\n▶️ Testing !speak with seductive moan voice...")
+        print("\n▶️ Testing real human voice...")
         print("-" * 50)
         result = handle_speak_command(query, "test_user", "tester", thread_id, cl)
         print("-" * 50)
         if result is None:
-            print("🎉 Seductive moan voice sent! 💋🔥")
+            print("🎉 Real human voice sent! 💋🔥")
         else:
             print(f"ℹ️ {result}")
     
