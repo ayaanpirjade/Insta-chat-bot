@@ -15,6 +15,10 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any
 from instagrapi import Client
+from dotenv import load_dotenv  # ✅ Added for .env support
+
+# ── Load Environment Variables ──
+load_dotenv()  # ✅ Load .env file
 
 # ── gTTS (Free Fallback) ──
 try:
@@ -31,81 +35,58 @@ except ImportError:
     GROQ_AVAILABLE = False
 
 # ── Constants ──
-COOLDOWN_SECONDS = 10  # Reduced cooldown for better experience
+COOLDOWN_SECONDS = 10
 _last_used: Dict[str, float] = {}
 _last_request_time: float = 0
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # ── Fish Audio API Configuration ──
-FISH_AUDIO_API_KEY = os.getenv("FISH_AUDIO_API_KEY", "YOUR_FISH_AUDIO_API_KEY_HERE")
+FISH_AUDIO_API_KEY = os.getenv("FISH_AUDIO_API_KEY")  # ✅ Read from .env
+if not FISH_AUDIO_API_KEY:
+    print("⚠️ WARNING: FISH_AUDIO_API_KEY not found in .env file!")
+    print("💡 Using fallback gTTS only...")
+
 FISH_AUDIO_API_URL = "https://api.fish.audio/v1/tts"
 
 # ── Seductive Female Voice Configuration ──
 SEDUCTIVE_VOICE_CONFIG = {
-    "voice_id": "female-seductive",  # Fish Audio voice ID for seductive female
-    "speed": 0.9,  # Slightly slower for seductive effect
-    "pitch": 1.1,  # Slightly higher pitch
+    "voice_id": "female-seductive",
+    "speed": 0.9,
+    "pitch": 1.1,
     "emotion": "seductive"
 }
 
 # ── Language Support ──
 LANGUAGE_CODES = {
-    "hi": "hi",      # Hindi
-    "en": "en",      # English
-    "ta": "ta",      # Tamil
-    "te": "te",      # Telugu
-    "ml": "ml",      # Malayalam
-    "kn": "kn",      # Kannada
-    "ur": "ur",      # Urdu
-    "bn": "bn",      # Bengali
-    "mr": "mr",      # Marathi
-    "gu": "gu",      # Gujarati
-    "pa": "pa",      # Punjabi
-    "or": "or",      # Odia
+    "hi": "hi", "en": "en", "ta": "ta", "te": "te", "ml": "ml",
+    "kn": "kn", "ur": "ur", "bn": "bn", "mr": "mr", "gu": "gu",
+    "pa": "pa", "or": "or"
 }
 
-# ── Hinglish Seductive Phrases for Better Voice ──
+# ── Hinglish Seductive Phrases ──
 SEDUCTIVE_PREFIXES = [
-    "Hey baby, ",
-    "Listen carefully, ",
-    "Oh my god, ",
-    "Guess what, ",
-    "You know what, ",
-    "Let me tell you something, ",
-    "Are you ready for this, ",
-    "Trust me, "
+    "Hey baby, ", "Listen carefully, ", "Oh my god, ",
+    "Guess what, ", "You know what, ", "Let me tell you something, ",
+    "Are you ready for this, ", "Trust me, ", "Baby, ", "Sweetheart, "
 ]
 
 SEDUCTIVE_SUFFIXES = [
-    " baby.",
-    " honey.",
-    " sweetie.",
-    " darling.",
-    " cutie.",
-    " handsome.",
-    " beautiful.",
-    " my love.",
-    " my dear."
+    " baby.", " honey.", " sweetie.", " darling.", " cutie.",
+    " handsome.", " beautiful.", " my love.", " my dear.", " sexy."
 ]
 
 
 def detect_language(text: str) -> str:
-    """Detect language from text"""
     hindi_pattern = re.compile(r'[\u0900-\u097F]')
-    if hindi_pattern.search(text):
-        return "hi"
-    return "en"
+    return "hi" if hindi_pattern.search(text) else "en"
 
 
 def make_seductive(text: str) -> str:
-    """Make text more seductive for voice generation"""
-    # Remove existing greetings to avoid duplication
     for prefix in SEDUCTIVE_PREFIXES:
         if text.lower().startswith(prefix.lower()):
             text = text[len(prefix):].strip()
     
-    # Randomly add seductive prefix/suffix (30% chance)
     if random.random() < 0.3:
         prefix = random.choice(SEDUCTIVE_PREFIXES)
         suffix = random.choice(SEDUCTIVE_SUFFIXES)
@@ -134,14 +115,14 @@ def ensure_request_gap(min_gap: float = 1.0):
 # ═══════════════════════════════════════════════════════════════
 
 def generate_tts_fish_audio(text: str, lang: str = "en") -> Optional[str]:
-    """
-    Generate TTS using Fish Audio API with seductive female voice
-    """
+    """Generate TTS using Fish Audio API with seductive female voice"""
     try:
-        # Make text seductive
+        if not FISH_AUDIO_API_KEY:
+            print("  ⚠️ No Fish Audio API key found! Using gTTS fallback...")
+            return generate_tts_gtts(text, lang)
+        
         seductive_text = make_seductive(text)
         
-        # Clean text for filename
         safe_text = re.sub(r'[^\w\s-]', '', text[:30]).strip()
         safe_text = re.sub(r'[-\s]+', '_', safe_text) if safe_text else "speech"
         filename = os.path.join(DOWNLOAD_DIR, f"tts_{safe_text}_{int(time.time())}.mp3")
@@ -151,12 +132,6 @@ def generate_tts_fish_audio(text: str, lang: str = "en") -> Optional[str]:
         print(f"  💋 Seductive: {seductive_text[:50]}...")
         print(f"  🌐 Language: {lang}")
         
-        # Check if API key is configured
-        if FISH_AUDIO_API_KEY == "YOUR_FISH_AUDIO_API_KEY_HERE":
-            print("  ⚠️ Fish Audio API key not configured! Falling back to gTTS...")
-            return generate_tts_gtts(text, lang)
-        
-        # ✅ Fish Audio API Request
         headers = {
             "Authorization": f"Bearer {FISH_AUDIO_API_KEY}",
             "Content-Type": "application/json"
@@ -172,6 +147,7 @@ def generate_tts_fish_audio(text: str, lang: str = "en") -> Optional[str]:
             "format": "mp3"
         }
         
+        print(f"  📡 Sending request to Fish Audio...")
         response = requests.post(
             FISH_AUDIO_API_URL,
             headers=headers,
@@ -180,7 +156,6 @@ def generate_tts_fish_audio(text: str, lang: str = "en") -> Optional[str]:
         )
         
         if response.status_code == 200:
-            # Save audio file
             with open(filename, "wb") as f:
                 f.write(response.content)
             
@@ -189,7 +164,9 @@ def generate_tts_fish_audio(text: str, lang: str = "en") -> Optional[str]:
                 print(f"  ✅ Seductive voice generated ({size_kb:.1f} KB) 🎀")
                 return filename
         else:
-            print(f"  ⚠️ Fish Audio API error: {response.status_code} - {response.text}")
+            print(f"  ⚠️ Fish Audio API error: {response.status_code}")
+            if response.text:
+                print(f"  📝 Error details: {response.text[:200]}")
             print("  🔄 Falling back to gTTS...")
             return generate_tts_gtts(text, lang)
         
@@ -206,26 +183,21 @@ def generate_tts_fish_audio(text: str, lang: str = "en") -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════
 
 def generate_tts_gtts(text: str, lang: str = "en") -> Optional[str]:
-    """
-    Generate TTS using gTTS as fallback (FREE)
-    """
+    """Generate TTS using gTTS as fallback (FREE)"""
     try:
         if not GTTS_AVAILABLE:
             print("  ⚠️ gTTS not installed. Install with: pip install gTTS")
             return None
         
-        # Make text slightly seductive
         seductive_text = make_seductive(text)
         
-        # Clean text for filename
         safe_text = re.sub(r'[^\w\s-]', '', text[:30]).strip()
         safe_text = re.sub(r'[-\s]+', '_', safe_text) if safe_text else "speech"
         filename = os.path.join(DOWNLOAD_DIR, f"tts_{safe_text}_{int(time.time())}.mp3")
         
         print(f"  🔊 Using gTTS fallback...")
         
-        # ✅ gTTS - SLOW but FREE!
-        tts = gTTS(text=seductive_text, lang=lang, slow=True)  # Slow = more seductive
+        tts = gTTS(text=seductive_text, lang=lang, slow=True)
         tts.save(filename)
         
         if os.path.exists(filename) and os.path.getsize(filename) > 0:
@@ -251,13 +223,8 @@ def convert_to_voice_note(input_path: str) -> Optional[str]:
         output_path = input_path.replace(".mp3", "_voice.m4a")
         
         ffmpeg_cmd = [
-            ffmpeg_path,
-            "-y",
-            "-i", input_path,
-            "-acodec", "aac",
-            "-ac", "1",
-            "-ar", "16000",
-            output_path
+            ffmpeg_path, "-y", "-i", input_path,
+            "-acodec", "aac", "-ac", "1", "-ar", "16000", output_path
         ]
         
         subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=60)
@@ -279,7 +246,6 @@ def convert_to_voice_note(input_path: str) -> Optional[str]:
 def get_ai_reply(query: str, max_tokens: int = 300, user_id: str = "default", conversation_id: str | None = None) -> Optional[str]:
     """Get a concise reply from the shared provider-agnostic AI engine."""
     try:
-        # Enhanced prompt for more engaging responses
         enhanced_query = f"Give a short, engaging, and slightly playful response to: {query}"
         
         from . import ai
@@ -299,9 +265,7 @@ def get_ai_reply(query: str, max_tokens: int = 300, user_id: str = "default", co
 # ═══════════════════════════════════════════════════════════════
 
 def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
-    """
-    Handle !tts command - Convert text to speech with seductive female voice
-    """
+    """Handle !tts command - Convert text to speech with seductive female voice"""
     text = text.strip()
     if not text:
         return "🔊 Please provide text to speak.\nExample: !tts Hello everyone"
@@ -312,7 +276,6 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
     lang = detect_language(text)
     lang_code = LANGUAGE_CODES.get(lang, "en")
     
-    # Cooldown check
     last = _last_used.get(user_id)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -322,16 +285,13 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
     
     print(f"\n🔊 Processing TTS with seductive voice: {text[:50]}...")
     
-    # ✅ Generate TTS with seductive voice
     audio_path = generate_tts_fish_audio(text, lang_code)
     
     if not audio_path:
         return f"❌ Failed to generate TTS.\n\nText: {text[:200]}"
     
-    # ✅ Convert to voice note format
     voice_path = convert_to_voice_note(audio_path)
     
-    # Cleanup MP3
     if audio_path != voice_path and os.path.exists(audio_path):
         try:
             os.remove(audio_path)
@@ -343,11 +303,9 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
     
     print(f"  📤 Sending voice note...")
     try:
-        # ✅ Send as voice note ONLY (no text)
         cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
         print(f"  ✅ Voice note sent! 💋")
         
-        # Cleanup
         try:
             if os.path.exists(voice_path):
                 os.remove(voice_path)
@@ -362,9 +320,7 @@ def handle_tts_command(text: str, user_id: str, username: str, thread_id: str, c
 
 
 def handle_speak_command(query: str, user_id: str, username: str, thread_id: str, cl: Client) -> Optional[str]:
-    """
-    Handle !speak command - AI Reply + Seductive Voice Note ONLY (no text)
-    """
+    """Handle !speak command - AI Reply + Seductive Voice Note ONLY (no text)"""
     query = query.strip()
     if not query:
         return "🔊 Please ask something.\nExample: !speak What is the weather today?"
@@ -372,7 +328,6 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
     if len(query) > 300:
         return "⚠️ Question too long! Maximum 300 characters."
     
-    # Cooldown check
     last = _last_used.get(user_id)
     if last is not None:
         elapsed = time.monotonic() - last
@@ -382,13 +337,11 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
     
     print(f"\n🔊 Processing speak with seductive voice: {query[:50]}...")
     
-    # Get AI reply through the shared engine
     reply = get_ai_reply(query, user_id=user_id, conversation_id=f"{thread_id}:{user_id}")
     
     if not reply:
         return "❌ Failed to get AI reply."
     
-    # Generate seductive voice
     lang = detect_language(reply)
     lang_code = LANGUAGE_CODES.get(lang, "en")
     
@@ -399,7 +352,6 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
     
     voice_path = convert_to_voice_note(audio_path)
     
-    # Cleanup MP3
     if audio_path != voice_path and os.path.exists(audio_path):
         try:
             os.remove(audio_path)
@@ -410,11 +362,9 @@ def handle_speak_command(query: str, user_id: str, username: str, thread_id: str
         return f"❌ Voice conversion failed.\n\nAI Reply: {reply[:200]}"
     
     try:
-        # ✅ Send ONLY voice note (no text)
         cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
         print(f"  ✅ Voice note sent! 💋")
         
-        # Cleanup
         try:
             if os.path.exists(voice_path):
                 os.remove(voice_path)
