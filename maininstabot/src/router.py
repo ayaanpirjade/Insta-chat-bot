@@ -348,9 +348,15 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             return vn_storage.handle_pvn_command(args, user_id, username, thread_id, cl)
 
         # ── 🤖 AI + VOICE ──
-        elif cmd in ["speak", "voiceai"]:
-            return tts.handle_speak_command(args, user_id, username, thread_id, cl)
-
+        elif cmd in ["speak", "voiceai", "vsay"]:
+    return speak_command.handle_speak_command(
+        cl=cl,
+        thread_id=thread_id,
+        msg=msg,
+        user_id=user_id,
+        username=username,
+        args=args
+    )
         # ── 💬 SHARED AI ENGINE ──
         elif cmd in ["ai", "ask", "chat", "chatgpt"]:
             if not args:
