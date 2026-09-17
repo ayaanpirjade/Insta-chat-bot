@@ -53,7 +53,7 @@ SEDUCTIVE_PREFIXES = ["Hey baby, ", "Listen jaan, ", "Oh my god, "]
 
 # ── AI Config ──
 AI_URL = "https://api.groq.com/openai/v1/chat/completions"
-AI_MODEL = "llama-3.3-70b-versatile"
+AI_MODEL = os.getenv("AI_MODEL","llama-3.1-8b-instant")
 AI_KEY = os.getenv("GROQ_API_KEY", "")
 AI_TIMEOUT = 30
 AI_MAX_WORDS = 50
