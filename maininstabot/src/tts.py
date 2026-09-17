@@ -1,7 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #   💋 AYAAN AI - tts.py
-#   Edge TTS (Primary - Free) + Fish Audio (Optional Fallback)
-#   LADKI Brain + Female Voice
+#   Edge TTS (Free, Unlimited) + LADKI Brain (AI Reply)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -36,15 +35,15 @@ _last_used: Dict[str, float] = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# ── Fish Audio (Optional - only if credit available) ──
+# ── Fish Audio (Optional fallback) ──
 FISH_API_KEY = os.getenv("FISH_AUDIO_API_KEY", "")
 FISH_API_URL = "https://api.fish.audio/v1/tts"
 CUSTOM_VOICE_ID = "7981ebac70314924bbc9ace34ce8f775"
 
 # ── Edge TTS Female Voices (FREE) ──
 EDGE_VOICES = {
-    "en": "en-IN-NeerjaNeural",      # Indian English Female
-    "hi": "hi-IN-SwaraNeural",       # Hindi Female
+    "en": "en-IN-NeerjaNeural",
+    "hi": "hi-IN-SwaraNeural",
 }
 
 # ── Seductive Effects ──
@@ -154,7 +153,7 @@ def detect_language(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  🎤 EDGE TTS (PRIMARY - FREE, UNLIMITED)
+#  🎤 EDGE TTS (PRIMARY - FREE)
 # ═══════════════════════════════════════════════════════════════
 
 def generate_tts_edge(text: str, lang: str = "en") -> Optional[str]:
@@ -171,7 +170,6 @@ def generate_tts_edge(text: str, lang: str = "en") -> Optional[str]:
 
         print(f"  🎤 Edge TTS ({voice})...")
 
-        # Edge TTS is async - run in new event loop
         communicate = edge_tts.Communicate(seductive_text, voice)
         asyncio.run(communicate.save(filename))
 
@@ -203,8 +201,6 @@ def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
 
         filename = os.path.join(DOWNLOAD_DIR, f"fish_{int(time.time())}_{uuid.uuid4().hex[:6]}.mp3")
 
-        print(f"  🎣 Trying Fish Audio (custom voice)...")
-
         headers = {
             "Authorization": f"Bearer {FISH_API_KEY}",
             "Content-Type": "application/json"
@@ -230,12 +226,6 @@ def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
                 size_kb = os.path.getsize(filename) / 1024
                 print(f"  ✅ Fish voice ready ({size_kb:.1f} KB) 💋")
                 return filename
-        elif response.status_code == 402:
-            print(f"  ⚠️ Fish: No API credit (using Edge TTS)")
-        elif response.status_code == 401:
-            print(f"  ⚠️ Fish: Invalid API key")
-        else:
-            print(f"  ⚠️ Fish error: {response.status_code}")
 
         return None
 
@@ -249,16 +239,10 @@ def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════
 
 def generate_tts(text: str, lang: str = "en") -> Optional[str]:
-    """
-    Main TTS - Edge TTS first (free & reliable), Fish optional
-    """
-    # 🔥 Edge TTS PRIMARY (free, always works)
+    """Main TTS - Edge first (free), Fish fallback"""
     audio = generate_tts_edge(text, lang)
     if audio:
         return audio
-
-    # Fallback: Fish Audio (only if Edge fails, rare)
-    print(f"  🔄 Edge failed, trying Fish Audio...")
     return generate_tts_fish(text, lang)
 
 
@@ -332,7 +316,7 @@ def ai_reply(thread_id: str, prompt: str, sender_label: str) -> Optional[str]:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  🔊 MAIN HANDLER
+#  🔊 MAIN HANDLER - ALWAYS AI MODE
 # ═══════════════════════════════════════════════════════════════
 
 def handle_speak_command(
@@ -343,7 +327,10 @@ def handle_speak_command(
     username: str,
     args: str = ""
 ) -> Optional[str]:
-    """!speak command handler"""
+    """
+    !speak <text> - Always AI reply + voice note
+    Both !speak and !speak ai work same way now
+    """
 
     query = args.strip()
     if not query:
@@ -356,82 +343,52 @@ def handle_speak_command(
             return f"⏳ Ruko jaan! Wait {round(COOLDOWN_SECONDS - elapsed, 1)}s 💋"
     _last_used[user_id] = time.monotonic()
 
-    # ── AI Mode ──
+    # 🔥 ALWAYS AI MODE - "ai " prefix optional
     if query.lower().startswith("ai "):
         prompt = query[3:].strip()
-        if not prompt:
-            return "❌ Kuch toh bol jaan!"
-
-        print(f"\n🎤 AI Speak from: {username}")
-        print(f"  📝 Prompt: {prompt[:50]}...")
-
-        mem_add(thread_id, username, prompt)
-
-        t0 = time.time()
-        reply = ai_reply(thread_id, prompt, username)
-        if not reply:
-            return "❌ Brain offline hai jaan~"
-        print(f"  ✅ LADKI AI reply ({time.time() - t0:.1f}s): {reply[:60]}...")
-
-        mem_add(thread_id, "AYAAN AI", reply)
-
-        lang = detect_language(reply)
-
-        audio_path = generate_tts(reply, lang)
-        if not audio_path:
-            return "❌ Voice nahi ban payi jaan~"
-
-        voice_path = convert_to_voice_note(audio_path)
-
-        if audio_path != voice_path and os.path.exists(audio_path):
-            try: os.remove(audio_path)
-            except: pass
-
-        if not voice_path or not os.path.exists(voice_path):
-            return "❌ Voice convert nahi hui~"
-
-        try:
-            cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
-            print(f"  ✅ LADKI voice sent! 💋🔥")
-            try: os.remove(voice_path)
-            except: pass
-            return None
-        except Exception as e:
-            print(f"  ⚠️ Send failed: {e}")
-            return "❌ Voice ready but send nahi hui~"
-
-    # ── Direct TTS Mode ──
     else:
-        text = query[:500]
-        print(f"\n🔊 Speak from: {username}")
-        print(f"  📝 Text: {text[:50]}...")
+        prompt = query  # Default: AI reply
 
-        mem_add(thread_id, username, text)
+    if not prompt:
+        return "❌ Kuch toh bol jaan!"
 
-        lang = detect_language(text)
+    print(f"\n🎤 AI Speak from: {username}")
+    print(f"  📝 Prompt: {prompt[:50]}...")
 
-        audio_path = generate_tts(text, lang)
-        if not audio_path:
-            return "❌ Voice nahi ban payi jaan~"
+    mem_add(thread_id, username, prompt)
 
-        voice_path = convert_to_voice_note(audio_path)
+    t0 = time.time()
+    reply = ai_reply(thread_id, prompt, username)
+    if not reply:
+        return "❌ Brain offline hai jaan~"
+    print(f"  ✅ LADKI AI reply ({time.time() - t0:.1f}s): {reply[:60]}...")
 
-        if audio_path != voice_path and os.path.exists(audio_path):
-            try: os.remove(audio_path)
-            except: pass
+    mem_add(thread_id, "AYAAN AI", reply)
 
-        if not voice_path or not os.path.exists(voice_path):
-            return "❌ Voice convert nahi hui~"
+    lang = detect_language(reply)
 
-        try:
-            cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
-            print(f"  ✅ Voice sent! 💋")
-            try: os.remove(voice_path)
-            except: pass
-            return None
-        except Exception as e:
-            print(f"  ⚠️ Send failed: {e}")
-            return "❌ Voice ready but send nahi hui~"
+    audio_path = generate_tts(reply, lang)
+    if not audio_path:
+        return "❌ Voice nahi ban payi jaan~"
+
+    voice_path = convert_to_voice_note(audio_path)
+
+    if audio_path != voice_path and os.path.exists(audio_path):
+        try: os.remove(audio_path)
+        except: pass
+
+    if not voice_path or not os.path.exists(voice_path):
+        return "❌ Voice convert nahi hui~"
+
+    try:
+        cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
+        print(f"  ✅ LADKI voice sent! 💋🔥")
+        try: os.remove(voice_path)
+        except: pass
+        return None
+    except Exception as e:
+        print(f"  ⚠️ Send failed: {e}")
+        return "❌ Voice ready but send nahi hui~"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -440,16 +397,10 @@ def handle_speak_command(
 
 load_memory()
 
-# Debug
 if not EDGE_AVAILABLE:
     print("⚠️ edge-tts not installed! Run: pip install edge-tts")
 else:
     print("✅ Edge TTS ready (free, unlimited)")
-
-if FISH_API_KEY:
-    print(f"✅ Fish API key loaded (optional): {FISH_API_KEY[:15]}...")
-else:
-    print("ℹ️ Fish API key not set (Edge TTS only)")
 
 if AI_KEY:
     print(f"✅ Groq API key loaded")
