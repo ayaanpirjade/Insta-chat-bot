@@ -1,12 +1,13 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#   💋 AYAAN AI - TTS + LADKI BRAIN 💋
-#   Fish Audio + Edge TTS + AI Reply (Female Persona)
-#   Termux Compatible
+#   💋 AYAAN AI - tts.py
+#   Edge TTS (Primary - Free) + Fish Audio (Optional Fallback)
+#   LADKI Brain + Female Voice
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
 import re
 import time
+import uuid
 import json
 import random
 import asyncio
@@ -16,13 +17,18 @@ import requests
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from instagrapi import Client
+from dotenv import load_dotenv
 
-# ── Optional: Edge TTS for fallback ──
+# ── Load .env ──
+load_dotenv()
+
+# ── Optional: Edge TTS ──
 try:
     import edge_tts
     EDGE_AVAILABLE = True
 except ImportError:
     EDGE_AVAILABLE = False
+    print("⚠️ edge-tts not installed! Run: pip install edge-tts")
 
 # ── Constants ──
 COOLDOWN_SECONDS = 8
@@ -30,30 +36,30 @@ _last_used: Dict[str, float] = {}
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# ── Fish Audio Configuration ──
-FISH_API_KEY = "YOUR_FREE_FISH_API_KEY"  # Sign up at fish.audio
+# ── Fish Audio (Optional - only if credit available) ──
+FISH_API_KEY = os.getenv("FISH_AUDIO_API_KEY", "")
 FISH_API_URL = "https://api.fish.audio/v1/tts"
+CUSTOM_VOICE_ID = "7981ebac70314924bbc9ace34ce8f775"
 
-# ── Indian FEMALE Voice IDs ──
-VOICE_IDS = {
-    "en": "a6630e2dd6c14ea799c2a7c078e0d8de",  # Indian Female
-    "hi": "818b74f842624571839985d02def5ac2",  # Hindi Female Narrator
-    "seductive": "a6630e2dd6c14ea799c2a7c078e0d8de"
+# ── Edge TTS Female Voices (FREE) ──
+EDGE_VOICES = {
+    "en": "en-IN-NeerjaNeural",      # Indian English Female
+    "hi": "hi-IN-SwaraNeural",       # Hindi Female
 }
 
-# ── 🌶️ SEDUCTIVE MOAN EFFECTS ──
-SEDUCTIVE_MOANS = ["mmm... ", "ahh... ", "ohh... ", "hmm... ", "mmhh... "]
-SEDUCTIVE_SUFFIXES = [" baby.", " honey.", " jaan.", " darling.", " sexy."]
-SEDUCTIVE_PREFIXES = ["Hey baby, ", "Listen jaan, ", "Oh my god, ", "Trust me, "]
+# ── Seductive Effects ──
+SEDUCTIVE_MOANS = ["mmm... ", "ahh... ", "ohh... ", "hmm... "]
+SEDUCTIVE_SUFFIXES = [" baby.", " honey.", " jaan.", " darling."]
+SEDUCTIVE_PREFIXES = ["Hey baby, ", "Listen jaan, ", "Oh my god, "]
 
 # ── AI Config ──
 AI_URL = "https://api.groq.com/openai/v1/chat/completions"
 AI_MODEL = "llama-3.3-70b-versatile"
-AI_KEY = None
+AI_KEY = os.getenv("GROQ_API_KEY", "")
 AI_TIMEOUT = 30
 AI_MAX_WORDS = 50
 
-# ── 🔥 LADKI WALA PERSONA ──
+# ── LADKI PERSONA ──
 PERSONA = """You are AYAAN AI - a 21-year-old flirty, seductive Indian GIRL. 💋
 
 IMPORTANT: You are a GIRL, not a boy. Always speak like a girl.
@@ -68,16 +74,19 @@ Rules:
 - Never share credentials
 - Keep it short, punchy, and seductive"""
 
-# ── Memory (24h per thread) ──
+# ── Memory ──
 MEMORY_FILE = Path(DOWNLOAD_DIR) / "speak_memory.json"
 MEMORY_TTL = 86400
 CONTEXT_MSGS = 10
 memory_store = {}
 mem_lock = threading.Lock()
 
+# ── TTS Lock ──
+tts_lock = threading.Lock()
+
 
 # ═══════════════════════════════════════════════════════════════
-#  MEMORY MANAGEMENT
+#  MEMORY
 # ═══════════════════════════════════════════════════════════════
 
 def load_memory():
@@ -103,11 +112,9 @@ def mem_add(thread_id: str, user_label: str, text: str):
         ent = memory_store.get(thread_id)
         if ent and (time.time() - ent.get("ts", 0)) > MEMORY_TTL:
             memory_store[thread_id] = {"ts": time.time(), "msgs": []}
-
         ent = memory_store.setdefault(thread_id, {"ts": time.time(), "msgs": []})
         ent["ts"] = time.time()
         ent["msgs"].append({"u": str(user_label)[:24], "t": str(text)})
-
         if len(ent["msgs"]) > CONTEXT_MSGS:
             ent["msgs"] = ent["msgs"][-CONTEXT_MSGS:]
         save_memory()
@@ -118,10 +125,6 @@ def mem_context(thread_id: str) -> List[Dict]:
         ent = memory_store.get(thread_id)
         return list(ent["msgs"]) if ent else []
 
-
-# ═══════════════════════════════════════════════════════════════
-#  TEXT CLEANING
-# ═══════════════════════════════════════════════════════════════
 
 def clean_text(t: str) -> str:
     t = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "", t)
@@ -135,56 +138,72 @@ def trim_words(t: str, n: int) -> str:
     return " ".join(w[:n]) if len(w) > n else t
 
 
-# ═══════════════════════════════════════════════════════════════
-#  SEDUCTIVE TEXT EFFECTS
-# ═══════════════════════════════════════════════════════════════
-
 def make_seductive(text: str) -> str:
-    """Add seductive moan effects to text"""
     text = re.sub(r'[^\w\s.,!?]', '', text)
-
-    if random.random() < 0.4:
-        text = f"{random.choice(SEDUCTIVE_MOANS)}{text}"
-
     if random.random() < 0.3:
+        text = f"{random.choice(SEDUCTIVE_MOANS)}{text}"
+    if random.random() < 0.2:
         text = f"{random.choice(SEDUCTIVE_PREFIXES)}{text}"
-
-    if random.random() < 0.4:
+    if random.random() < 0.3:
         text = f"{text}{random.choice(SEDUCTIVE_SUFFIXES)}"
-
-    if len(text) > 20 and random.random() < 0.3:
-        parts = text.split(" ")
-        if len(parts) > 3:
-            parts.insert(random.randint(1, len(parts)-2), "...")
-            text = " ".join(parts)
-
     return text
 
 
 def detect_language(text: str) -> str:
-    """Detect Hindi or English"""
     return "hi" if re.search(r'[\u0900-\u097F]', text) else "en"
 
 
 # ═══════════════════════════════════════════════════════════════
-#  🎤 FISH AUDIO - Female Voice
+#  🎤 EDGE TTS (PRIMARY - FREE, UNLIMITED)
 # ═══════════════════════════════════════════════════════════════
 
-def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
-    """Generate TTS using Fish Audio - Female voice"""
+def generate_tts_edge(text: str, lang: str = "en") -> Optional[str]:
+    """Edge TTS - Free, unlimited, female Indian voice"""
     try:
-        if FISH_API_KEY == "YOUR_FREE_FISH_API_KEY":
-            print("  ⚠️ Fish API key missing! Get free key from fish.audio")
+        if not EDGE_AVAILABLE:
+            print("  ⚠️ edge-tts not installed!")
             return None
 
         seductive_text = make_seductive(text)
+        filename = os.path.join(DOWNLOAD_DIR, f"edge_{int(time.time())}_{uuid.uuid4().hex[:6]}.mp3")
 
+        voice = EDGE_VOICES.get(lang, EDGE_VOICES["en"])
+
+        print(f"  🎤 Edge TTS ({voice})...")
+
+        # Edge TTS is async - run in new event loop
+        communicate = edge_tts.Communicate(seductive_text, voice)
+        asyncio.run(communicate.save(filename))
+
+        if os.path.exists(filename) and os.path.getsize(filename) > 0:
+            size_kb = os.path.getsize(filename) / 1024
+            print(f"  ✅ Edge voice ready ({size_kb:.1f} KB)")
+            return filename
+
+        return None
+
+    except Exception as e:
+        print(f"  ⚠️ Edge TTS error: {e}")
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════
+#  🎣 FISH AUDIO (OPTIONAL FALLBACK)
+# ═══════════════════════════════════════════════════════════════
+
+def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
+    """Fish Audio - only if API credit available"""
+    try:
+        if not FISH_API_KEY:
+            return None
+
+        seductive_text = make_seductive(text)
         if len(seductive_text) > 500:
             seductive_text = seductive_text[:497] + "..."
 
-        filename = os.path.join(DOWNLOAD_DIR, f"fish_{int(time.time())}.mp3")
+        filename = os.path.join(DOWNLOAD_DIR, f"fish_{int(time.time())}_{uuid.uuid4().hex[:6]}.mp3")
 
-        print(f"  🔊 Generating seductive Indian voice (Fish Audio)...")
+        print(f"  🎣 Trying Fish Audio (custom voice)...")
 
         headers = {
             "Authorization": f"Bearer {FISH_API_KEY}",
@@ -193,8 +212,7 @@ def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
 
         payload = {
             "text": seductive_text,
-            "voice_id": VOICE_IDS.get(lang, VOICE_IDS["seductive"]),
-            "model": "s2.1-pro-free",
+            "reference_id": CUSTOM_VOICE_ID,
             "format": "mp3"
         }
 
@@ -208,13 +226,16 @@ def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
         if response.status_code == 200:
             with open(filename, "wb") as f:
                 f.write(response.content)
-
             if os.path.getsize(filename) > 0:
                 size_kb = os.path.getsize(filename) / 1024
-                print(f"  ✅ Voice generated ({size_kb:.1f} KB) 💋")
+                print(f"  ✅ Fish voice ready ({size_kb:.1f} KB) 💋")
                 return filename
+        elif response.status_code == 402:
+            print(f"  ⚠️ Fish: No API credit (using Edge TTS)")
+        elif response.status_code == 401:
+            print(f"  ⚠️ Fish: Invalid API key")
         else:
-            print(f"  ⚠️ Fish API error: {response.status_code}")
+            print(f"  ⚠️ Fish error: {response.status_code}")
 
         return None
 
@@ -224,48 +245,21 @@ def generate_tts_fish(text: str, lang: str = "en") -> Optional[str]:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  🔄 FALLBACK: Edge TTS - Female Voice
-# ═══════════════════════════════════════════════════════════════
-
-def generate_tts_edge(text: str, lang: str = "en") -> Optional[str]:
-    """Edge TTS fallback - Female voice"""
-    try:
-        if not EDGE_AVAILABLE:
-            print("  ⚠️ edge-tts not installed!")
-            return None
-
-        seductive_text = make_seductive(text)
-        filename = os.path.join(DOWNLOAD_DIR, f"edge_{int(time.time())}.mp3")
-
-        # 🔥 Female voices
-        voice = "en-IN-NeerjaNeural" if lang == "en" else "hi-IN-SwaraNeural"
-
-        print(f"  🔄 Using Edge TTS (female voice)...")
-
-        communicate = edge_tts.Communicate(seductive_text, voice)
-        asyncio.run(communicate.save(filename))
-
-        if os.path.getsize(filename) > 0:
-            print(f"  ✅ Edge voice ready (fallback)")
-            return filename
-
-        return None
-
-    except Exception as e:
-        print(f"  ⚠️ Edge TTS error: {e}")
-        return None
-
-
-# ═══════════════════════════════════════════════════════════════
 #  📦 MAIN TTS FUNCTION
 # ═══════════════════════════════════════════════════════════════
 
 def generate_tts(text: str, lang: str = "en") -> Optional[str]:
-    """Main TTS - Fish Audio first, fallback Edge TTS"""
-    audio = generate_tts_fish(text, lang)
+    """
+    Main TTS - Edge TTS first (free & reliable), Fish optional
+    """
+    # 🔥 Edge TTS PRIMARY (free, always works)
+    audio = generate_tts_edge(text, lang)
     if audio:
         return audio
-    return generate_tts_edge(text, lang)
+
+    # Fallback: Fish Audio (only if Edge fails, rare)
+    print(f"  🔄 Edge failed, trying Fish Audio...")
+    return generate_tts_fish(text, lang)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -273,15 +267,14 @@ def generate_tts(text: str, lang: str = "en") -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════
 
 def convert_to_voice_note(input_path: str) -> Optional[str]:
-    """Convert MP3 to M4A for Instagram voice note"""
+    """Convert MP3 to M4A (Instagram voice note format)"""
     try:
         output_path = input_path.replace(".mp3", "_voice.m4a")
 
         ffmpeg_cmd = [
             "ffmpeg", "-y", "-i", input_path,
             "-acodec", "aac", "-ac", "1", "-ar", "16000",
-            # Female voice optimization
-            "-af", "highpass=f=100,lowpass=f=9000",
+            "-af", "highpass=f=80,lowpass=f=9000",
             output_path
         ]
 
@@ -302,28 +295,15 @@ def convert_to_voice_note(input_path: str) -> Optional[str]:
 # ═══════════════════════════════════════════════════════════════
 
 def ai_reply(thread_id: str, prompt: str, sender_label: str) -> Optional[str]:
-    """Get AI reply from LADKI brain"""
-    global AI_KEY
-
     if not AI_KEY:
-        try:
-            import config
-            AI_KEY = getattr(config, 'GROQ_API_KEY', None)
-        except:
-            pass
-
-    if not AI_KEY:
-        print("  ⚠️ No GROQ_API_KEY found")
+        print("  ⚠️ No GROQ_API_KEY in .env!")
         return None
 
     msgs = [{"role": "system", "content": PERSONA}]
-
-    # Add context from memory
     ctx = mem_context(thread_id)
     if ctx:
         convo = "\n".join(f"{m['u']}: {m['t']}" for m in ctx)
         msgs.append({"role": "user", "content": f"Recent chat:\n{convo}"})
-
     msgs.append({"role": "user", "content": f"{sender_label} says: {prompt}"})
 
     try:
@@ -352,7 +332,7 @@ def ai_reply(thread_id: str, prompt: str, sender_label: str) -> Optional[str]:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  🔊 MAIN COMMAND HANDLER (called from speak_command.py)
+#  🔊 MAIN HANDLER
 # ═══════════════════════════════════════════════════════════════
 
 def handle_speak_command(
@@ -363,10 +343,8 @@ def handle_speak_command(
     username: str,
     args: str = ""
 ) -> Optional[str]:
-    """
-    !speak <text>       - Direct seductive voice
-    !speak ai <text>    - LADKI AI reply + seductive voice
-    """
+    """!speak command handler"""
+
     query = args.strip()
     if not query:
         return "🔊 Kuch toh bol jaan~"
@@ -387,31 +365,24 @@ def handle_speak_command(
         print(f"\n🎤 AI Speak from: {username}")
         print(f"  📝 Prompt: {prompt[:50]}...")
 
-        # Add user message to memory
         mem_add(thread_id, username, prompt)
 
-        # Get LADKI AI reply
         t0 = time.time()
         reply = ai_reply(thread_id, prompt, username)
         if not reply:
             return "❌ Brain offline hai jaan~"
         print(f"  ✅ LADKI AI reply ({time.time() - t0:.1f}s): {reply[:60]}...")
 
-        # Add AI reply to memory
         mem_add(thread_id, "AYAAN AI", reply)
 
-        # Detect language
         lang = detect_language(reply)
 
-        # Generate voice
         audio_path = generate_tts(reply, lang)
         if not audio_path:
             return "❌ Voice nahi ban payi jaan~"
 
-        # Convert to voice note
         voice_path = convert_to_voice_note(audio_path)
 
-        # Cleanup MP3
         if audio_path != voice_path and os.path.exists(audio_path):
             try: os.remove(audio_path)
             except: pass
@@ -419,14 +390,11 @@ def handle_speak_command(
         if not voice_path or not os.path.exists(voice_path):
             return "❌ Voice convert nahi hui~"
 
-        # Send voice note
         try:
             cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
             print(f"  ✅ LADKI voice sent! 💋🔥")
-
             try: os.remove(voice_path)
             except: pass
-
             return None
         except Exception as e:
             print(f"  ⚠️ Send failed: {e}")
@@ -458,10 +426,8 @@ def handle_speak_command(
         try:
             cl.direct_send_voice(Path(voice_path), thread_ids=[str(thread_id)])
             print(f"  ✅ Voice sent! 💋")
-
             try: os.remove(voice_path)
             except: pass
-
             return None
         except Exception as e:
             print(f"  ⚠️ Send failed: {e}")
@@ -474,48 +440,18 @@ def handle_speak_command(
 
 load_memory()
 
+# Debug
+if not EDGE_AVAILABLE:
+    print("⚠️ edge-tts not installed! Run: pip install edge-tts")
+else:
+    print("✅ Edge TTS ready (free, unlimited)")
 
-# ── Standalone Test ──
-if __name__ == "__main__":
-    import sys
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if FISH_API_KEY:
+    print(f"✅ Fish API key loaded (optional): {FISH_API_KEY[:15]}...")
+else:
+    print("ℹ️ Fish API key not set (Edge TTS only)")
 
-    try:
-        import config
-        print(f"✅ config.py loaded!")
-    except ImportError:
-        print("❌ config.py not found!")
-        sys.exit(1)
-
-    print("""
-========================================
-   💋 AYAAN AI - LADKI TTS 💋
-   Fish Audio + Edge TTS + AI Brain
-========================================
-    """)
-
-    session_id = getattr(config, 'SESSION_ID', '').split(",")[0].strip()
-    if not session_id:
-        print("❌ No SESSION_ID found!")
-        sys.exit(1)
-
-    cl = Client()
-    try:
-        cl.login_by_sessionid(session_id)
-        print(f"✅ Logged in!")
-    except Exception as e:
-        print(f"❌ Login failed: {e}")
-        sys.exit(1)
-
-    thread_id = input("📱 Enter thread_id: ").strip()
-    query = input("💬 Ask: ").strip()
-
-    print("\n▶️ Testing...")
-    print("-" * 50)
-    result = handle_speak_command(cl, thread_id, None, "test_user", "tester", query)
-    print("-" * 50)
-
-    if result is None:
-        print("🎉 Voice sent! 💋🔥")
-    else:
-        print(f"ℹ️ {result}")
+if AI_KEY:
+    print(f"✅ Groq API key loaded")
+else:
+    print("⚠️ GROQ_API_KEY missing in .env!")
