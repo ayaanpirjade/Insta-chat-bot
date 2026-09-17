@@ -1,6 +1,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #          🎬 AYAAN AI - Reel Command
-#          FINAL - FIXED VERSION (No API Calls!)
+#          FINAL - NO API CALLS (Instagram GraphQL Blocked)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import os
@@ -92,62 +92,66 @@ def extract_link_from_text(text: str) -> Optional[str]:
     return None
 
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  🔥 XMA EXTRACTION (NO API CALLS)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
+    """Extract reel from XMA (swipe reels) - NO API CALLS"""
     try:
-        if not msg:
+        if not msg or not hasattr(msg, 'raw_xma') or not msg.raw_xma:
             return None
 
-        if hasattr(msg, 'raw_xma') and msg.raw_xma:
-            raw_xma = msg.raw_xma
-            if isinstance(raw_xma, dict):
-                # Check for xma_clip
-                xma_clip = raw_xma.get('xma_clip')
-                if xma_clip and isinstance(xma_clip, list) and len(xma_clip) > 0:
-                    clip_data = xma_clip[0]
-                    serialized = clip_data.get('serialized_content_ref')
-                    if serialized:
-                        if isinstance(serialized, str):
-                            try:
-                                serialized = json.loads(serialized)
-                            except:
-                                pass
-                        if isinstance(serialized, dict):
-                            target_url = serialized.get('target_url')
-                            if target_url:
-                                target_url = target_url.replace('\\/', '/')
-                                code = extract_reel_id_from_url(target_url)
-                                if code:
-                                    return {
-                                        'code': code,
-                                        'url': target_url,
-                                        'username': serialized.get('username', ''),
-                                        'source': 'xma_clip'
-                                    }
+        raw_xma = msg.raw_xma
+        if not isinstance(raw_xma, dict):
+            return None
 
-                # Check for xma_media_share (post share)
-                xma_media = raw_xma.get('xma_media_share')
-                if xma_media and isinstance(xma_media, list) and len(xma_media) > 0:
-                    media_data = xma_media[0]
-                    serialized = media_data.get('serialized_content_ref')
-                    if serialized:
-                        if isinstance(serialized, str):
-                            try:
-                                serialized = json.loads(serialized)
-                            except:
-                                pass
-                        if isinstance(serialized, dict):
-                            target_url = serialized.get('target_url')
-                            if target_url:
-                                target_url = target_url.replace('\\/', '/')
-                                if '/reel/' in target_url or '/p/' in target_url:
-                                    code = extract_reel_id_from_url(target_url)
-                                    if code:
-                                        return {
-                                            'code': code,
-                                            'url': target_url,
-                                            'username': serialized.get('username', ''),
-                                            'source': 'xma_media_share'
-                                        }
+        # Check xma_clip
+        xma_clip = raw_xma.get('xma_clip')
+        if xma_clip and isinstance(xma_clip, list) and len(xma_clip) > 0:
+            clip_data = xma_clip[0]
+            serialized = clip_data.get('serialized_content_ref')
+            if isinstance(serialized, str):
+                try:
+                    serialized = json.loads(serialized)
+                except:
+                    pass
+            if isinstance(serialized, dict):
+                target_url = serialized.get('target_url', '')
+                if target_url:
+                    target_url = target_url.replace('\\/', '/')
+                    code = extract_reel_id_from_url(target_url)
+                    if code:
+                        return {
+                            'code': code,
+                            'url': f"https://www.instagram.com/reel/{code}/",
+                            'username': serialized.get('username', ''),
+                            'source': 'xma_clip'
+                        }
+
+        # Check xma_media_share
+        xma_media = raw_xma.get('xma_media_share')
+        if xma_media and isinstance(xma_media, list) and len(xma_media) > 0:
+            media_data = xma_media[0]
+            serialized = media_data.get('serialized_content_ref')
+            if isinstance(serialized, str):
+                try:
+                    serialized = json.loads(serialized)
+                except:
+                    pass
+            if isinstance(serialized, dict):
+                target_url = serialized.get('target_url', '')
+                if target_url:
+                    target_url = target_url.replace('\\/', '/')
+                    code = extract_reel_id_from_url(target_url)
+                    if code:
+                        return {
+                            'code': code,
+                            'url': f"https://www.instagram.com/reel/{code}/",
+                            'username': serialized.get('username', ''),
+                            'source': 'xma_media_share'
+                        }
+
         return None
     except Exception as e:
         print(f"  ⚠️ XMA extract failed: {e}")
@@ -155,42 +159,49 @@ def extract_reel_from_xma(msg) -> Optional[Dict[str, Any]]:
 
 
 def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
-    if not msg: return None
+    """Extract reel from any message type - NO API CALLS"""
+    if not msg:
+        return None
 
-    # 1. Check direct reel_share
+    # 1. XMA first (swipe reels)
+    xma_data = extract_reel_from_xma(msg)
+    if xma_data:
+        return xma_data
+
+    # 2. reel_share
     if hasattr(msg, 'reel_share') and msg.reel_share:
         code = getattr(msg.reel_share, 'code', None)
         if code:
             return {
                 'code': code,
                 'url': f"https://www.instagram.com/reel/{code}/",
-                'username': getattr(msg.reel_share.user, 'username', '') if hasattr(msg.reel_share, 'user') else '',
+                'username': '',
                 'source': 'reel_share'
             }
 
-    # 2. Check clip (direct reel share)
+    # 3. clip
     if hasattr(msg, 'clip') and msg.clip:
         code = getattr(msg.clip, 'code', None)
         if code:
             return {
                 'code': code,
                 'url': f"https://www.instagram.com/reel/{code}/",
-                'username': getattr(msg.clip.user, 'username', '') if hasattr(msg.clip, 'user') else '',
+                'username': '',
                 'source': 'clip'
             }
 
-    # 3. Check media_share
+    # 4. media_share
     if hasattr(msg, 'media_share') and msg.media_share:
         code = getattr(msg.media_share, 'code', None)
         if code:
             return {
                 'code': code,
                 'url': f"https://www.instagram.com/reel/{code}/",
-                'username': getattr(msg.media_share.user, 'username', '') if hasattr(msg.media_share, 'user') else '',
+                'username': '',
                 'source': 'media_share'
             }
 
-    # 4. Check text/link
+    # 5. Text link
     if hasattr(msg, 'text') and msg.text:
         url = extract_link_from_text(msg.text)
         if url:
@@ -202,6 +213,7 @@ def extract_reel_from_message(msg) -> Optional[Dict[str, Any]]:
 
 
 def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessage]:
+    """Get the message that was replied to"""
     try:
         replied_to_id = None
 
@@ -242,33 +254,21 @@ def get_replied_message(cl: Client, thread_id: str, msg) -> Optional[DirectMessa
         return None
 
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  🔥 FIXED: NO media_info() API CALL
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 def get_reel_from_reply(cl: Client, thread_id: str, msg) -> Optional[Dict[str, Any]]:
+    """Get reel from reply - NO API CALLS"""
     try:
         replied = get_replied_message(cl, thread_id, msg)
         if not replied:
             return None
 
-        media_id = getattr(replied, 'pk', None) or getattr(replied, 'id', None)
-        if hasattr(replied, 'clip'):
-            media_id = getattr(replied.clip, 'pk', media_id)
-        elif hasattr(replied, 'media_share'):
-            media_id = getattr(replied.media_share, 'pk', media_id)
-
-        if media_id and cl:
-            try:
-                info = cl.media_info(media_id)
-                if info and getattr(info, 'code', None):
-                    return {
-                        'code': info.code,
-                        'url': f"https://www.instagram.com/reel/{info.code}/",
-                        'username': getattr(info.user, 'username', ''),
-                        'source': 'api'
-                    }
-            except:
-                pass
-
+        # 🔥 NO media_info() call - just local extraction!
         return extract_reel_from_message(replied)
-    except:
+    except Exception as e:
+        print(f"  ⚠️ Reply extract failed: {e}")
         return None
 
 
@@ -282,6 +282,8 @@ def get_cached_reel(thread_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_reel_url(cl: Client, thread_id: str, msg, args: str = "") -> Optional[str]:
+    """Get reel URL from args, reply, or cache"""
+    # 1. Args (direct link or code)
     if args:
         url = extract_link_from_text(args)
         if url:
@@ -289,11 +291,13 @@ def get_reel_url(cl: Client, thread_id: str, msg, args: str = "") -> Optional[st
         if re.match(r'^[A-Za-z0-9_-]+$', args.strip()):
             return f"https://www.instagram.com/reel/{args.strip()}/"
 
+    # 2. Reply
     if msg:
         reel_data = get_reel_from_reply(cl, thread_id, msg)
         if reel_data:
             return reel_data['url']
 
+    # 3. Cache (last swipe)
     cached = get_cached_reel(thread_id)
     if cached:
         return cached['url']
@@ -302,10 +306,11 @@ def get_reel_url(cl: Client, thread_id: str, msg, args: str = "") -> Optional[st
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  🔥 FIXED: download_reel_audio - COMPLETELY NO API!
+#  DOWNLOAD FUNCTIONS (yt-dlp based, NO API)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def download_reel_audio(cl: Client, url: str) -> Optional[str]:
+    """Download reel audio using yt-dlp - NO API CALLS"""
     try:
         human_like_delay(2.0, 4.0)
 
@@ -322,7 +327,6 @@ def download_reel_audio(cl: Client, url: str) -> Optional[str]:
             print("  ⚠️ yt-dlp not installed")
             return None
 
-        # Download with yt-dlp - NO API CALLS!
         cmd = [
             yt_dlp_path,
             "-f", "bestvideo+bestaudio/best",
@@ -384,6 +388,7 @@ def download_reel_audio(cl: Client, url: str) -> Optional[str]:
 
 
 def download_instagram_reel(url: str) -> Optional[str]:
+    """Download reel video using yt-dlp - NO API CALLS"""
     try:
         human_like_delay(2.0, 4.0)
 
@@ -530,10 +535,6 @@ def handle_audio_command(cl: Client, thread_id: str, msg, user_id: str, username
     if not find_executable("yt-dlp"):
         return "⚠️ yt-dlp not installed. Install with: pip install yt-dlp"
 
-    # 🔥 FIX: Add delay before extraction to avoid rate limiting
-    print(f"  ⏳ Waiting 5 seconds before extraction...")
-    time.sleep(5.0)
-
     audio_path = download_reel_audio(cl, url)
 
     if not audio_path:
@@ -570,7 +571,7 @@ if __name__ == "__main__":
     print("""
 ========================================
    🎬 AYAAN AI - Reel & Audio
-   FINAL FIXED VERSION
+   FINAL FIXED VERSION (No API Calls!)
 ========================================
     """)
 
