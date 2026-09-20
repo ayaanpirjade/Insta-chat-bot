@@ -26,8 +26,8 @@ from . import evil as evil
 from . import command_toggle as command_toggle
 from . import group_admin as group_admin
 from . import voice_note_storage as vn_storage
-from .command_parser import parse_command
 from . import broadcast as broadcast
+from .command_parser import parse_command
 
 import config
 
@@ -49,7 +49,7 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
         reel_data = reel.extract_reel_from_message(msg)
         if reel_data:
             reel.cache_reel(thread_id, reel_data)
-        
+
         # Cache Voice Notes
         vn_url = vn_storage.extract_vn_url_from_message(msg)
         if vn_url:
@@ -298,27 +298,36 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             )
             return result
 
-# ── 📢 BROADCAST (Admin Only) ──
+        # ── 📢 BROADCAST (Admin Only) ──
         elif cmd in ["broad", "broadcast"]:
-        result = broadcast.handle_broad_command(
-        query=args,
-        user_id=user_id,
-        username=username,
-        thread_id=thread_id,
-        cl=cl
-        )
-        return result
+            result = broadcast.handle_broad_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
+            )
+            return result
 
-       elif cmd in ["stopbroad", "broadcaststop"]:
-       result = broadcast.handle_stopbroad_command(
-        query=args,
-        user_id=user_id,
-        username=username,
-        thread_id=thread_id,
-        cl=cl
-        )
-        return result
+        elif cmd in ["stopbroad", "broadcaststop"]:
+            result = broadcast.handle_stopbroad_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
+            )
+            return result
 
+        elif cmd in ["broadstatus", "broadcaststatus"]:
+            result = broadcast.handle_broadstatus_command(
+                query=args,
+                user_id=user_id,
+                username=username,
+                thread_id=thread_id,
+                cl=cl
+            )
+            return result
 
         # ── 📸 POST/REEL REPOST ──
         elif cmd in ["post", "repost", "share"]:
@@ -372,14 +381,16 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
 
         # ── 🤖 AI + VOICE ──
         elif cmd in ["speak", "voiceai", "vsay"]:
-    return speak_command.handle_speak_command(
-        cl=cl,
-        thread_id=thread_id,
-        msg=msg,
-        user_id=user_id,
-        username=username,
-        args=args
-    )
+            from . import speak_command
+            return speak_command.handle_speak_command(
+                cl=cl,
+                thread_id=thread_id,
+                msg=msg,
+                user_id=user_id,
+                username=username,
+                args=args
+            )
+
         # ── 💬 SHARED AI ENGINE ──
         elif cmd in ["ai", "ask", "chat", "chatgpt"]:
             if not args:
