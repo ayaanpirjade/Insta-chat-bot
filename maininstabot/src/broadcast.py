@@ -1,5 +1,5 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#          📢 AYAAN AI - Broadcast Command  (Hardened v2)
+#          📢 AYAAN AI - Broadcast Command  (v3 — Lock-safe)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import time
@@ -22,7 +22,7 @@ MIN_DELAY = 15
 MAX_DELAY = 30
 BATCH_SIZE = 30
 BATCH_PAUSE = 120
-STALE_LOCK_SECONDS = 30 * 60   # auto-clear lock if a run takes >30 min
+STALE_LOCK_SECONDS = 30 * 60
 
 # ── State ──
 _broadcast_lock = threading.Lock()
@@ -99,13 +99,11 @@ def _run_broadcast(cl: Client, message: str, ack_thread_id: str):
                 _human_delay()
 
     except BaseException as fatal:
-        # Catch EVERYTHING including KeyboardInterrupt so the flag always resets
         print(f"  💥 Broadcast crashed: {fatal!r}")
 
     finally:
-        # 🔑 THIS is what guarantees the flag resets no matter what
         _broadcast_running = False
-        print("  🔓 Broadcast lock released")
+        print("  🔓 Broadcast flag reset")
 
         summary = (
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -140,19 +138,23 @@ def handle_broad_command(query: str, user_id: str, username: str,
     if len(query) > 500:
         return "⚠️ Message too long (max 500 chars)."
 
-    # ── Watchdog: auto-clear stale locks ──
+    # Watchdog: auto-clear stale locks
     if _broadcast_running:
         age = time.time() - _broadcast_started_at
         if age > STALE_LOCK_SECONDS:
-            print(f"  🧹 Clearing stale broadcast lock (age {age:.0f}s)")
+            print(f"  🧹 Clearing stale broadcast flag (age {age:.0f}s)")
             _broadcast_running = False
+            # Also force-release a possibly stuck lock
+            try:
+                _broadcast_lock.release()
+            except RuntimeError:
+                pass  # lock wasn't held — that's fine
         else:
             return f"⏳ Broadcast already running ({age:.0f}s ago). Use `!stopbroad` to cancel."
 
     if not _broadcast_lock.acquire(blocking=False):
         return "⏳ Broadcast lock busy — try again in a moment."
 
-    # From here we OWN the lock. Flag goes True; the worker resets it.
     _broadcast_running = True
     _broadcast_started_at = time.time()
     print("  🔒 Broadcast lock acquired")
@@ -165,11 +167,18 @@ def handle_broad_command(query: str, user_id: str, username: str,
     except Exception:
         pass
 
-    threading.Thread(
-        target=_run_broadcast,
-        args=(cl, query, thread_id),
-        daemon=True,
-    ).start()
+    def _worker():
+        try:
+            _run_broadcast(cl, query, thread_id)
+        finally:
+            # 🔑 Release the lock HERE — in the worker's finally
+            try:
+                _broadcast_lock.release()
+                print("  🔓 Broadcast lock fully released")
+            except RuntimeError:
+                pass  # already released — safe
+
+    threading.Thread(target=_worker, daemon=True).start()
 
     return None
 
@@ -188,7 +197,6 @@ def handle_stopbroad_command(query: str, user_id: str, username: str,
     return "🛑 Broadcast cancel requested. It will stop after the current thread."
 
 
-# ── NEW: !broadstatus — sanity check ──
 def handle_broadstatus_command(query: str, user_id: str, username: str,
                                thread_id: str, cl: Client) -> Optional[str]:
     if not is_admin(user_id):
