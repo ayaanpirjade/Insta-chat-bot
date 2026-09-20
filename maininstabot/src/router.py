@@ -27,6 +27,7 @@ from . import command_toggle as command_toggle
 from . import group_admin as group_admin
 from . import voice_note_storage as vn_storage
 from .command_parser import parse_command
+from . import broadcast as broadcast
 
 import config
 
