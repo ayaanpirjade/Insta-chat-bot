@@ -298,6 +298,28 @@ def process_message(text: str, thread_id: str, user_id: str, username: str, is_g
             )
             return result
 
+# ── 📢 BROADCAST (Admin Only) ──
+        elif cmd in ["broad", "broadcast"]:
+        result = broadcast.handle_broad_command(
+        query=args,
+        user_id=user_id,
+        username=username,
+        thread_id=thread_id,
+        cl=cl
+        )
+        return result
+
+       elif cmd in ["stopbroad", "broadcaststop"]:
+       result = broadcast.handle_stopbroad_command(
+        query=args,
+        user_id=user_id,
+        username=username,
+        thread_id=thread_id,
+        cl=cl
+        )
+        return result
+
+
         # ── 📸 POST/REEL REPOST ──
         elif cmd in ["post", "repost", "share"]:
             result = post.handle_post_command(
